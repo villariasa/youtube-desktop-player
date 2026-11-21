@@ -1,19 +1,25 @@
 """
 Immersive Glassmorphism Desktop Music Visualizer
-- Zero white boxes: solid frameless window matching card dimensions
-- Full audio playback: HTML5 Audio without CORS mute
-- Flowing neon ribbon waves + spectrum visualizer (pink, magenta, violet, electric-blue)
-- Pure glassmorphism card matching reference image
+- Desktop-wide flowing neon ribbon waves extending across the screen (wave_layer.py)
+- Transparent background showing desktop wallpaper
+- 100% click-through wave layer (never blocks desktop icons)
+- Floating glassmorphism music widget centered along the waves
+- Real-time spectrum equalizer inside the card
+- Controls: Volume, Elapsed/Total Time, Prev, Glowing Circular Play/Pause, Next, Shuffle, Repeat
+- Clean user-friendly search modal (zero presets)
 - Desktop level (on_top=False, never overlaps other applications)
-- User-friendly search modal with zero presets
 """
 import webview
 import yt_dlp
 import threading
+import subprocess
 import json
 import ctypes
 import os
 import sys
+
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_state.json")
+WAVE_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wave_layer.py")
 
 # Screen resolution
 user32 = ctypes.windll.user32
@@ -24,7 +30,7 @@ WIDGET_W = 620
 WIDGET_H = 156
 
 POS_X = (SCREEN_W - WIDGET_W) // 2
-POS_Y = SCREEN_H - WIDGET_H - 90  # Lower center of screen matching reference
+POS_Y = 645  # Aligns perfectly with the desktop wave center
 
 HTML_CONTENT = """
 <!DOCTYPE html>
@@ -47,10 +53,10 @@ HTML_CONTENT = """
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #12071a;
+    background: #14091e;
   }
 
-  /* GLASSMORPHISM CARD CONTAINER */
+  /* GLASSMORPHISM CARD CONTAINER (Exact match to reference image) */
   .player-card {
     width: 100%;
     height: 100%;
@@ -66,14 +72,13 @@ HTML_CONTENT = """
     gap: 16px;
     position: relative;
     cursor: grab;
-    border-radius: 0;
   }
 
   .player-card:active {
     cursor: grabbing;
   }
 
-  /* Neon Waves Canvas Background inside card */
+  /* Internal Wave Canvas */
   #waves-canvas {
     position: absolute;
     top: 0;
@@ -82,7 +87,7 @@ HTML_CONTENT = """
     height: 100%;
     pointer-events: none;
     z-index: 1;
-    opacity: 0.65;
+    opacity: 0.75;
   }
 
   /* Glass Top Light Edge */
@@ -367,9 +372,7 @@ HTML_CONTENT = """
     outline: none;
   }
 
-  .search-input:focus {
-    border-color: #ec4899;
-  }
+  .search-input:focus { border-color: #ec4899; }
 
   .search-submit-btn {
     background: linear-gradient(135deg, #ec4899, #a855f7);
@@ -405,9 +408,7 @@ HTML_CONTENT = """
     transition: background 0.15s ease;
   }
 
-  .result-item:hover {
-    background: rgba(236, 72, 153, 0.22);
-  }
+  .result-item:hover { background: rgba(236, 72, 153, 0.22); }
 
   .result-thumb {
     width: 28px;
@@ -503,7 +504,7 @@ HTML_CONTENT = """
     </div>
   </div>
 
-  <!-- SEARCH MODAL OVERLAY (Pure search, ZERO presets) -->
+  <!-- SEARCH MODAL OVERLAY -->
   <div class="search-modal" id="search-modal">
     <div class="search-bar">
       <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
@@ -578,7 +579,6 @@ HTML_CONTENT = """
   function renderWaves() {
     requestAnimationFrame(renderWaves);
 
-    // Dynamic wave animation speed & amplitude
     const speed = isPlaying ? 0.035 : 0.008;
     waveOffset += speed;
 
@@ -607,7 +607,6 @@ HTML_CONTENT = """
     for (let i = 0; i < NUM_BARS; i++) {
       let h = 4;
       if (isPlaying) {
-        // Multi-frequency harmonic motion
         const v = 0.35 + 0.35 * Math.sin(t + i * 0.35) + 0.30 * Math.cos(t * 1.7 - i * 0.5);
         h = Math.max(3, Math.min(22, v * 22));
       }
@@ -644,6 +643,7 @@ HTML_CONTENT = """
       playIcon.style.display = 'block';
       pauseIcon.style.display = 'none';
     }
+    window.pywebview && window.pywebview.api.notify_state(playing);
   }
 
   btnPlayPause.addEventListener('click', (e) => {
@@ -814,8 +814,9 @@ HTML_CONTENT = """
 """
 
 class MusicAPI:
-    def __init__(self, win_holder):
+    def __init__(self, win_holder, wave_proc_holder):
         self.win_holder = win_holder
+        self.wave_proc_holder = wave_proc_holder
         self.history = [
             {"id": "oC6brLXQe4I", "title": "BABYMONSTER - 'DESERVE' M/V", "artist": "YouTube", "thumb": "https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg"},
             {"id": "dX3k_QDnzHE", "title": "Midnight City", "artist": "M83", "thumb": "https://i.ytimg.com/vi/dX3k_QDnzHE/hqdefault.jpg"}
@@ -834,7 +835,21 @@ class MusicAPI:
             'no_warnings': True,
         }
 
+    def notify_state(self, is_playing):
+        try:
+            with open(STATE_FILE, "w") as f:
+                json.dump({"playing": is_playing, "time": 0}, f)
+        except Exception:
+            pass
+
     def close_window(self):
+        # Terminate wave layer subprocess
+        proc = self.wave_proc_holder[0]
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
         w = self.win_holder[0]
         if w:
             w.destroy()
@@ -901,11 +916,18 @@ class MusicAPI:
 
 
 def main():
-    win_holder = [None]
-    api = MusicAPI(win_holder)
+    # 1. Start Desktop-Wide Transparent Click-Through Neon Wave Layer
+    wave_proc_holder = [None]
+    try:
+        wave_proc = subprocess.Popen([sys.executable, WAVE_SCRIPT], cwd=os.path.dirname(os.path.abspath(__file__)))
+        wave_proc_holder[0] = wave_proc
+    except Exception as e:
+        print("Wave layer launch notice:", e)
 
-    # Clean widget dimensions: NO outer white band!
-    # on_top=False ensures it NEVER overlaps other applications
+    # 2. Start Glassmorphism Music Widget
+    win_holder = [None]
+    api = MusicAPI(win_holder, wave_proc_holder)
+
     w = webview.create_window(
         title='Desktop Music Visualizer',
         html=HTML_CONTENT,
@@ -917,7 +939,7 @@ def main():
         resizable=False,
         on_top=False,
         js_api=api,
-        background_color='#12071a'
+        background_color='#14091e'
     )
     win_holder[0] = w
 
@@ -927,7 +949,15 @@ def main():
         api.play_id("oC6brLXQe4I")
 
     threading.Thread(target=auto_start, daemon=True).start()
-    webview.start()
+    
+    try:
+        webview.start()
+    finally:
+        if wave_proc_holder[0]:
+            try:
+                wave_proc_holder[0].terminate()
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     main()
