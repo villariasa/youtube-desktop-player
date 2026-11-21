@@ -1,11 +1,11 @@
 """
 Immersive Glassmorphism Desktop Music Visualizer
-- Transparent desktop-wide flowing neon ribbon waves (pink, magenta, violet, electric-blue)
-- Audio-reactive visualization responding to real-time music playback
-- Floating glassmorphism music widget styled after the reference image
-- Full controls: Volume, Time/Duration, Prev, Glowing Play/Pause, Next, Shuffle, Repeat, Search
-- Search & selection modal with zero presets
+- Zero white boxes: solid frameless window matching card dimensions
+- Full audio playback: HTML5 Audio without CORS mute
+- Flowing neon ribbon waves + spectrum visualizer (pink, magenta, violet, electric-blue)
+- Pure glassmorphism card matching reference image
 - Desktop level (on_top=False, never overlaps other applications)
+- User-friendly search modal with zero presets
 """
 import webview
 import yt_dlp
@@ -20,11 +20,11 @@ user32 = ctypes.windll.user32
 SCREEN_W = user32.GetSystemMetrics(0)
 SCREEN_H = user32.GetSystemMetrics(1)
 
-WIDGET_W = SCREEN_W
-WIDGET_H = 280
+WIDGET_W = 620
+WIDGET_H = 156
 
-POS_X = 0
-POS_Y = SCREEN_H - WIDGET_H - 42  # Sits right above the Windows taskbar
+POS_X = (SCREEN_W - WIDGET_W) // 2
+POS_Y = SCREEN_H - WIDGET_H - 90  # Lower center of screen matching reference
 
 HTML_CONTENT = """
 <!DOCTYPE html>
@@ -44,24 +44,36 @@ HTML_CONTENT = """
   }
 
   html, body {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: transparent !important;
-  }
-
-  /* Full-width container */
-  .visualizer-stage {
     width: 100%;
     height: 100%;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: transparent;
+    overflow: hidden;
+    background: #12071a;
   }
 
-  /* DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS */
+  /* GLASSMORPHISM CARD CONTAINER */
+  .player-card {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(32, 14, 46, 0.94) 0%, rgba(18, 7, 28, 0.98) 100%);
+    border: 1.5px solid rgba(236, 72, 153, 0.45);
+    box-shadow: 
+      0 0 35px rgba(217, 70, 239, 0.35),
+      0 16px 40px rgba(0, 0, 0, 0.7),
+      inset 0 1px 1px rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    gap: 16px;
+    position: relative;
+    cursor: grab;
+    border-radius: 0;
+  }
+
+  .player-card:active {
+    cursor: grabbing;
+  }
+
+  /* Neon Waves Canvas Background inside card */
   #waves-canvas {
     position: absolute;
     top: 0;
@@ -70,54 +82,33 @@ HTML_CONTENT = """
     height: 100%;
     pointer-events: none;
     z-index: 1;
+    opacity: 0.65;
   }
 
-  /* GLASSMORPHISM MUSIC CARD (Exact match to reference image) */
-  .player-card {
-    position: relative;
-    z-index: 10;
-    width: 580px;
-    height: 146px;
-    background: rgba(28, 14, 38, 0.48);
-    backdrop-filter: blur(28px) saturate(190%);
-    -webkit-backdrop-filter: blur(28px) saturate(190%);
-    border: 1.5px solid rgba(236, 72, 153, 0.42);
-    border-radius: 20px;
-    box-shadow: 
-      0 0 35px rgba(217, 70, 239, 0.28),
-      0 20px 48px rgba(0, 0, 0, 0.65),
-      inset 0 1px 1px rgba(255, 255, 255, 0.35);
-    display: flex;
-    align-items: center;
-    padding: 16px 20px;
-    gap: 16px;
-    cursor: grab;
-    transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
-  }
-
-  .player-card:active {
-    cursor: grabbing;
-  }
-
-  .player-card:hover {
-    background: rgba(36, 18, 48, 0.58);
-    border-color: rgba(244, 114, 182, 0.65);
-    box-shadow: 
-      0 0 45px rgba(217, 70, 239, 0.45),
-      0 24px 54px rgba(0, 0, 0, 0.75),
-      inset 0 1px 2px rgba(255, 255, 255, 0.45);
+  /* Glass Top Light Edge */
+  .player-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(244, 114, 182, 0.6) 50%, transparent 100%);
+    pointer-events: none;
+    z-index: 2;
   }
 
   /* Album Artwork */
   .album-wrap {
-    width: 102px;
-    height: 102px;
+    width: 98px;
+    height: 98px;
     border-radius: 14px;
     overflow: hidden;
     position: relative;
     flex-shrink: 0;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.15);
-    background: #110e18;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(236, 72, 153, 0.3);
+    background: #0d0612;
+    z-index: 10;
   }
 
   .album-art {
@@ -132,7 +123,7 @@ HTML_CONTENT = """
     transform: scale(1.05);
   }
 
-  /* Right Info & Controls Section */
+  /* Card Main Info & Controls */
   .card-main {
     flex: 1;
     min-width: 0;
@@ -141,9 +132,10 @@ HTML_CONTENT = """
     justify-content: space-between;
     height: 100%;
     padding: 2px 0;
+    z-index: 10;
   }
 
-  /* Top Info Row */
+  /* Title & Source */
   .track-meta {
     display: flex;
     flex-direction: column;
@@ -164,16 +156,16 @@ HTML_CONTENT = """
     font-size: 11px;
     font-weight: 400;
     color: #cbd5e1;
-    margin-top: 2px;
+    margin-top: 1px;
     opacity: 0.85;
   }
 
-  /* SPECTRUM EQUALIZER BARS (Inside card, pink/magenta gradient) */
+  /* AUDIO SPECTRUM BARS */
   .spectrum-bar-wrap {
     display: flex;
     align-items: center;
     gap: 3px;
-    height: 24px;
+    height: 22px;
     margin: 4px 0;
   }
 
@@ -181,21 +173,20 @@ HTML_CONTENT = """
     flex: 1;
     height: 4px;
     border-radius: 2px;
-    background: linear-gradient(180deg, #ec4899 0%, #a855f7 100%);
-    box-shadow: 0 0 6px rgba(236, 72, 153, 0.6);
+    background: linear-gradient(180deg, #f472b6 0%, #c084fc 100%);
+    box-shadow: 0 0 6px rgba(244, 114, 182, 0.65);
     transition: height 0.08s ease;
   }
 
-  /* BOTTOM CONTROLS BAR (Matches reference layout) */
+  /* CONTROLS BAR */
   .controls-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    margin-top: 2px;
+    gap: 8px;
   }
 
-  /* Left: Volume & Time */
+  /* Left: Volume */
   .controls-left {
     display: flex;
     align-items: center;
@@ -218,7 +209,7 @@ HTML_CONTENT = """
   .vol-btn:hover { color: #f472b6; }
 
   .vol-slider {
-    width: 55px;
+    width: 60px;
     height: 3px;
     -webkit-appearance: none;
     background: rgba(255, 255, 255, 0.22);
@@ -232,8 +223,8 @@ HTML_CONTENT = """
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #ec4899;
-    box-shadow: 0 0 6px rgba(236, 72, 153, 0.8);
+    background: #f472b6;
+    box-shadow: 0 0 6px rgba(244, 114, 182, 0.8);
     cursor: pointer;
   }
 
@@ -267,8 +258,8 @@ HTML_CONTENT = """
     height: 36px;
     border-radius: 50%;
     background: rgba(236, 72, 153, 0.25);
-    border: 1.5px solid rgba(244, 114, 182, 0.6);
-    box-shadow: 0 0 16px rgba(236, 72, 153, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    border: 1.5px solid rgba(244, 114, 182, 0.65);
+    box-shadow: 0 0 16px rgba(236, 72, 153, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -282,12 +273,10 @@ HTML_CONTENT = """
   .play-pause-btn:hover {
     transform: scale(1.1);
     background: rgba(236, 72, 153, 0.4);
-    box-shadow: 0 0 24px rgba(236, 72, 153, 0.75);
+    box-shadow: 0 0 24px rgba(236, 72, 153, 0.8);
   }
 
-  .play-pause-btn:active { transform: scale(0.94); }
-
-  /* Right: Time, Shuffle, Repeat, Search */
+  /* Right: Time, Shuffle, Repeat */
   .controls-right {
     display: flex;
     align-items: center;
@@ -298,7 +287,7 @@ HTML_CONTENT = """
     font-size: 11px;
     color: #cbd5e1;
     font-variant-numeric: tabular-nums;
-    margin-right: 4px;
+    margin-right: 2px;
   }
 
   .mini-btn {
@@ -316,7 +305,7 @@ HTML_CONTENT = """
   .mini-btn svg { width: 14px; height: 14px; fill: currentColor; }
   .mini-btn:hover, .mini-btn.active { color: #f472b6; }
 
-  /* Top Right Action (Close & Search) */
+  /* Top Right Action Icons */
   .card-top-actions {
     position: absolute;
     top: 8px;
@@ -340,19 +329,19 @@ HTML_CONTENT = """
     transition: color 0.15s, background 0.15s;
   }
 
-  .top-btn svg { width: 13px; height: 13px; fill: currentColor; }
+  .top-btn svg { width: 14px; height: 14px; fill: currentColor; }
   .top-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
   .top-btn.close-btn:hover { background: rgba(239, 68, 68, 0.4); color: #ef4444; }
 
-  /* SEARCH MODAL OVERLAY (Clean user search with results list) */
+  /* SEARCH MODAL OVERLAY (Pure search, ZERO presets) */
   .search-modal {
     position: absolute;
-    inset: 10px;
-    background: rgba(20, 10, 30, 0.94);
+    inset: 8px;
+    background: rgba(18, 7, 26, 0.96);
     backdrop-filter: blur(36px);
     border: 1px solid rgba(236, 72, 153, 0.45);
-    border-radius: 16px;
-    padding: 12px;
+    border-radius: 14px;
+    padding: 10px;
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -371,24 +360,23 @@ HTML_CONTENT = """
     flex: 1;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
+    border-radius: 8px;
     color: #fff;
-    padding: 7px 12px;
+    padding: 6px 12px;
     font-size: 12px;
     outline: none;
   }
 
   .search-input:focus {
     border-color: #ec4899;
-    box-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
   }
 
   .search-submit-btn {
     background: linear-gradient(135deg, #ec4899, #a855f7);
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     color: #fff;
-    padding: 7px 14px;
+    padding: 6px 14px;
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
@@ -448,93 +436,89 @@ HTML_CONTENT = """
 </head>
 <body>
 
-<div class="visualizer-stage">
-  <!-- 1. FULL DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS -->
+<div class="player-card" id="card">
+  <!-- Glowing Neon Wave Canvas Background -->
   <canvas id="waves-canvas"></canvas>
 
-  <!-- 2. GLASSMORPHISM MUSIC PLAYER WIDGET -->
-  <div class="player-card" id="card">
-    <!-- Top Right Actions -->
-    <div class="card-top-actions">
-      <button class="top-btn" id="btn-search-toggle" title="Search Any Song">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
-      </button>
-      <button class="top-btn close-btn" id="btn-close" title="Close">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
-      </button>
+  <!-- Top Right Actions -->
+  <div class="card-top-actions">
+    <button class="top-btn" id="btn-search-toggle" title="Search Any Song">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
+    </button>
+    <button class="top-btn close-btn" id="btn-close" title="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+    </button>
+  </div>
+
+  <!-- Album Artwork -->
+  <div class="album-wrap">
+    <img id="album-art" class="album-art" src="https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg" alt="Cover">
+  </div>
+
+  <!-- Card Main Content -->
+  <div class="card-main">
+    <!-- Title & Source -->
+    <div class="track-meta">
+      <div class="track-title" id="track-title">BABYMONSTER - 'DESERVE' M/V</div>
+      <div class="track-source" id="track-source">YouTube</div>
     </div>
 
-    <!-- Album Art -->
-    <div class="album-wrap">
-      <img id="album-art" class="album-art" src="https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg" alt="Cover">
-    </div>
+    <!-- Real-Time Spectrum Equalizer Bars -->
+    <div class="spectrum-bar-wrap" id="spectrum-bars"></div>
 
-    <!-- Card Main Info & Controls -->
-    <div class="card-main">
-      <!-- Title & Source -->
-      <div class="track-meta">
-        <div class="track-title" id="track-title">BABYMONSTER - 'DESERVE' M/V</div>
-        <div class="track-source" id="track-source">YouTube</div>
+    <!-- Controls Row -->
+    <div class="controls-bar">
+      <!-- Left: Volume -->
+      <div class="controls-left">
+        <button class="vol-btn" id="btn-mute" title="Mute/Unmute">
+          <svg viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-2.5 9L7 8H3v8h4.5l4.5 4.23V3.77z"/></svg>
+        </button>
+        <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.02" value="0.9">
       </div>
 
-      <!-- Real-Time Audio Spectrum Bars -->
-      <div class="spectrum-bar-wrap" id="spectrum-bars">
-        <!-- 32 spectrum bars dynamically generated -->
-      </div>
-
-      <!-- Controls Row -->
-      <div class="controls-bar">
-        <!-- Left: Volume -->
-        <div class="controls-left">
-          <button class="vol-btn" id="btn-mute" title="Mute/Unmute">
-            <svg viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-2.5 9L7 8H3v8h4.5l4.5 4.23V3.77z"/></svg>
-          </button>
-          <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.02" value="0.85">
-        </div>
-
-        <!-- Center: Playback Buttons -->
-        <div class="controls-center">
-          <button class="ctrl-btn" id="btn-prev" title="Previous Track">
-            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-          </button>
-          <button class="play-pause-btn" id="btn-play-pause" title="Play / Pause">
-            <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <svg class="pause-icon" style="display:none;" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-          </button>
-          <button class="ctrl-btn" id="btn-next" title="Next Track">
-            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-          </button>
-        </div>
-
-        <!-- Right: Time, Shuffle, Repeat, Search -->
-        <div class="controls-right">
-          <span class="time-display" id="time-display">0:00 / 0:00</span>
-          <button class="mini-btn" id="btn-shuffle" title="Shuffle">
-            <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-          </button>
-          <button class="mini-btn" id="btn-repeat" title="Repeat">
-            <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- SEARCH & SELECTION MODAL OVERLAY -->
-    <div class="search-modal" id="search-modal">
-      <div class="search-bar">
-        <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
-        <button class="search-submit-btn" id="search-submit-btn">FIND</button>
-        <button class="top-btn" id="btn-search-close">
-          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+      <!-- Center: Playback Buttons -->
+      <div class="controls-center">
+        <button class="ctrl-btn" id="btn-prev" title="Previous Track">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button class="play-pause-btn" id="btn-play-pause" title="Play / Pause">
+          <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="pause-icon" style="display:none;" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="ctrl-btn" id="btn-next" title="Next Track">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
         </button>
       </div>
-      <div class="search-results-list" id="search-results-list">
-        <div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Type any song above and hit Find</div>
+
+      <!-- Right: Time, Shuffle, Repeat -->
+      <div class="controls-right">
+        <span class="time-display" id="time-display">0:00 / 0:00</span>
+        <button class="mini-btn" id="btn-shuffle" title="Shuffle">
+          <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+        </button>
+        <button class="mini-btn" id="btn-repeat" title="Repeat">
+          <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
       </div>
+    </div>
+  </div>
+
+  <!-- SEARCH MODAL OVERLAY (Pure search, ZERO presets) -->
+  <div class="search-modal" id="search-modal">
+    <div class="search-bar">
+      <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
+      <button class="search-submit-btn" id="search-submit-btn">FIND</button>
+      <button class="top-btn" id="btn-search-close">
+        <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+      </button>
+    </div>
+    <div class="search-results-list" id="search-results-list">
+      <div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Type any song above and hit Find</div>
     </div>
   </div>
 </div>
 
+<!-- Standalone HTML5 Audio Player (Direct Audio Playback, NO CORS mute!) -->
 <audio id="audio-player" preload="auto"></audio>
 
 <script>
@@ -568,8 +552,8 @@ HTML_CONTENT = """
   let isShuffle = false;
   let currentSongId = 'oC6brLXQe4I';
 
-  // 1. Generate 32 spectrum bars inside card
-  const NUM_BARS = 32;
+  // 1. Generate 34 spectrum bars
+  const NUM_BARS = 34;
   const specBars = [];
   for (let i = 0; i < NUM_BARS; i++) {
     const b = document.createElement('div');
@@ -578,128 +562,69 @@ HTML_CONTENT = """
     specBars.push(b);
   }
 
-  // 2. WEB AUDIO API ANALYZER SETUP
-  let audioCtx, analyser, dataArray;
-  function initAudioContext() {
-    if (audioCtx) return;
-    try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.82;
-      const src = audioCtx.createMediaElementSource(audio);
-      src.connect(analyser);
-      analyser.connect(audioCtx.destination);
-      dataArray = new Uint8Array(analyser.frequencyBinCount);
-    } catch(e) {
-      console.log("AudioContext fallback: " + e);
-    }
-  }
-
-  // 3. DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS
+  // 2. Animated Flowing Neon Waves on Canvas
   const canvas = document.getElementById('waves-canvas');
   const ctx = canvas.getContext('2d');
 
   function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = card.clientWidth;
+    canvas.height = card.clientHeight;
   }
   window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
+  setTimeout(resizeCanvas, 50);
 
   let waveOffset = 0;
-  let currentEnergy = 0.2;
 
-  // Wave render loop
-  function drawWaves() {
-    requestAnimationFrame(drawWaves);
+  function renderWaves() {
+    requestAnimationFrame(renderWaves);
 
-    // Audio frequency analysis
-    let bass = 0, mid = 0, treble = 0;
-    if (analyser && dataArray && isPlaying) {
-      analyser.getByteFrequencyData(dataArray);
-      for (let i = 0; i < 4; i++) bass += dataArray[i];
-      bass = (bass / 4) / 255;
-      for (let i = 4; i < 16; i++) mid += dataArray[i];
-      mid = (mid / 12) / 255;
-      for (let i = 16; i < 32; i++) treble += dataArray[i];
-      treble = (treble / 16) / 255;
-    } else if (isPlaying) {
-      // Harmonic fallback synced to music progress
-      const t = audio.currentTime || Date.now() * 0.001;
-      bass = 0.4 + 0.3 * Math.sin(t * 4.2);
-      mid = 0.35 + 0.25 * Math.cos(t * 3.1);
-      treble = 0.3 + 0.2 * Math.sin(t * 5.5);
-    } else {
-      bass *= 0.95;
-      mid *= 0.95;
-      treble *= 0.95;
-    }
+    // Dynamic wave animation speed & amplitude
+    const speed = isPlaying ? 0.035 : 0.008;
+    waveOffset += speed;
 
-    const targetEnergy = isPlaying ? (bass * 0.6 + mid * 0.3 + treble * 0.1) : 0.08;
-    currentEnergy += (targetEnergy - currentEnergy) * 0.12;
-
-    // Update inside-card spectrum bars
-    for (let i = 0; i < NUM_BARS; i++) {
-      let val = 0;
-      if (dataArray && isPlaying) {
-        val = (dataArray[i % dataArray.length] / 255);
-      } else if (isPlaying) {
-        val = 0.25 + 0.65 * Math.abs(Math.sin(waveOffset * 2.5 + i * 0.3));
-      } else {
-        val = 0.08;
-      }
-      const h = Math.max(3, Math.min(24, val * 24));
-      specBars[i].style.height = h + 'px';
-    }
-
-    // Clear Canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Speed of flowing ribbon
-    waveOffset += isPlaying ? (0.015 + currentEnergy * 0.035) : 0.005;
-
-    // Draw Multi-Layered Flowing Neon Ribbons
-    const centerY = canvas.height * 0.52;
     const W = canvas.width;
+    const H = canvas.height;
+    const centerY = H * 0.52;
 
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
-    // Layer 1: Electric Blue / Cyan Deep Ribbon
-    drawNeonRibbon(ctx, W, centerY, waveOffset * 0.8, 48 * currentEnergy, 0.0022, 'rgba(56, 189, 248, 0.45)', 20);
+    // Layer 1: Electric Blue Ribbon
+    drawNeonWave(ctx, W, centerY, waveOffset * 0.9, isPlaying ? 22 : 6, 0.007, 'rgba(56, 189, 248, 0.35)', 16);
 
-    // Layer 2: Violet / Purple Ambient Flow
-    drawNeonRibbon(ctx, W, centerY + 8, waveOffset * 1.1 + 1.2, 58 * currentEnergy, 0.0028, 'rgba(168, 85, 247, 0.55)', 26);
+    // Layer 2: Deep Violet Flow
+    drawNeonWave(ctx, W, centerY + 4, waveOffset * 1.2 + 1.5, isPlaying ? 28 : 8, 0.009, 'rgba(168, 85, 247, 0.45)', 20);
 
-    // Layer 3: Main Glowing Magenta / Pink Core Wave
-    drawNeonRibbon(ctx, W, centerY - 6, waveOffset * 1.4 + 2.4, 72 * currentEnergy, 0.0034, 'rgba(236, 72, 153, 0.75)', 32);
-
-    // Layer 4: Bright Highlight Filament
-    drawNeonRibbon(ctx, W, centerY - 2, waveOffset * 1.6 + 3.6, 62 * currentEnergy, 0.0040, 'rgba(244, 114, 182, 0.90)', 14);
+    // Layer 3: Vibrant Magenta Core Ribbon
+    drawNeonWave(ctx, W, centerY - 3, waveOffset * 1.5 + 3.0, isPlaying ? 35 : 10, 0.011, 'rgba(236, 72, 153, 0.65)', 24);
 
     ctx.restore();
+
+    // Animate spectrum bars
+    const t = waveOffset * 2.5;
+    for (let i = 0; i < NUM_BARS; i++) {
+      let h = 4;
+      if (isPlaying) {
+        // Multi-frequency harmonic motion
+        const v = 0.35 + 0.35 * Math.sin(t + i * 0.35) + 0.30 * Math.cos(t * 1.7 - i * 0.5);
+        h = Math.max(3, Math.min(22, v * 22));
+      }
+      specBars[i].style.height = h + 'px';
+    }
   }
 
-  function drawNeonRibbon(context, width, baseY, offset, amplitude, freq, color, blur) {
+  function drawNeonWave(context, width, baseY, offset, amp, freq, color, blur) {
     context.save();
     context.beginPath();
     context.shadowColor = color;
     context.shadowBlur = blur;
     context.strokeStyle = color;
-    context.lineWidth = 3.5;
+    context.lineWidth = 2.5;
 
-    const step = 8;
-    for (let x = 0; x <= width; x += step) {
-      // Gaussian envelope so waves flourish near center widget and taper gracefully at edges
-      const normX = (x / width) * 2 - 1; // -1 to 1
-      const envelope = Math.exp(-Math.pow(normX * 1.3, 2));
-      const amp = (amplitude + 10) * (0.45 + envelope * 0.95);
-
-      const y = baseY + 
-        Math.sin(x * freq + offset) * amp + 
-        Math.cos(x * freq * 1.7 - offset * 0.8) * (amp * 0.35);
-
+    for (let x = 0; x <= width; x += 6) {
+      const y = baseY + Math.sin(x * freq + offset) * amp + Math.cos(x * freq * 1.5 - offset * 0.7) * (amp * 0.4);
       if (x === 0) context.moveTo(x, y);
       else context.lineTo(x, y);
     }
@@ -707,15 +632,14 @@ HTML_CONTENT = """
     context.restore();
   }
 
-  requestAnimationFrame(drawWaves);
+  requestAnimationFrame(renderWaves);
 
-  // 4. CONTROLS LOGIC
+  // 3. PLAYBACK CONTROLS
   function updatePlayState(playing) {
     isPlaying = playing;
     if (playing) {
       playIcon.style.display = 'none';
       pauseIcon.style.display = 'block';
-      initAudioContext();
     } else {
       playIcon.style.display = 'block';
       pauseIcon.style.display = 'none';
@@ -724,7 +648,6 @@ HTML_CONTENT = """
 
   btnPlayPause.addEventListener('click', (e) => {
     e.stopPropagation();
-    initAudioContext();
     if (audio.src) {
       if (audio.paused) {
         audio.play().then(() => updatePlayState(true)).catch(() => {});
@@ -859,11 +782,12 @@ HTML_CONTENT = """
   window.setStreamUrl = function(streamUrl) {
     if (streamUrl) {
       audio.src = streamUrl;
+      audio.volume = parseFloat(volSlider.value);
       audio.play().then(() => updatePlayState(true)).catch(e => console.log(e));
     }
   };
 
-  // Card dragging support
+  // Dragging support
   let isDragging = false;
   let startX = 0, startY = 0;
 
@@ -980,9 +904,8 @@ def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
 
-    # Full screen width transparent window
-    # Waves flow across entire desktop width, widget floats centered in the waves
-    # on_top=False ensures it NEVER overlaps other apps!
+    # Clean widget dimensions: NO outer white band!
+    # on_top=False ensures it NEVER overlaps other applications
     w = webview.create_window(
         title='Desktop Music Visualizer',
         html=HTML_CONTENT,
@@ -992,9 +915,9 @@ def main():
         y=POS_Y,
         frameless=True,
         resizable=False,
-        transparent=True,
         on_top=False,
-        js_api=api
+        js_api=api,
+        background_color='#12071a'
     )
     win_holder[0] = w
 
