@@ -21,7 +21,142 @@ import sys
 import io
 import time
 import base64
+import asyncio
+import websockets
+import numpy as np
+import soundcard as sc
 from PIL import Image
+
+AUDIO_WS_PORT = 8765
+
+class AudioEngine:
+    """
+    Real-time Native Windows WASAPI Loopback Audio Capture & FFT Frequency Analyzer.
+    Captures live desktop/system audio (YouTube, browser, Spotify, or local player),
+    computes FFT frequency bands, RMS volume, transient beat detection, and 64-point
+    time-domain waveform, broadcasting to WebView2 via local WebSocket at 60 FPS.
+    """
+    def __init__(self, port=AUDIO_WS_PORT):
+        self.port = port
+        self.running = True
+        self.latest_payload = json.dumps({
+            'vol': 0.0,
+            'bass': 0.0,
+            'vocal_mid': 0.0,
+            'vocal_high': 0.0,
+            'treble': 0.0,
+            'beat': 0.0,
+            'bars': [0.0] * 34,
+            'wave': [0.0] * 64
+        })
+
+    async def ws_handler(self, websocket):
+        try:
+            while self.running:
+                await websocket.send(self.latest_payload)
+                await asyncio.sleep(0.016)  # 60 FPS broadcast
+        except Exception:
+            pass
+
+    def start(self):
+        def run_ws():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            async def _serve():
+                async with websockets.serve(self.ws_handler, '127.0.0.1', self.port, ping_interval=None):
+                    while self.running:
+                        await asyncio.sleep(1.0)
+            loop.run_until_complete(_serve())
+
+        def run_capture():
+            # 34 logarithmic frequency bands between 30Hz and 16kHz
+            freq_bins = np.logspace(np.log10(30), np.log10(16000), 35)
+            smooth_bars = np.zeros(34, dtype=np.float32)
+            prev_energy = 0.0
+
+            while self.running:
+                try:
+                    spk = sc.default_speaker()
+                    mic = sc.get_microphone(id=str(spk.name), include_loopback=True)
+                    with mic.recorder(samplerate=44100, blocksize=1024) as rec:
+                        while self.running:
+                            data = rec.record(numframes=1024)
+                            if len(data) == 0:
+                                time.sleep(0.01)
+                                continue
+
+                            mono = data.mean(axis=1) if data.ndim > 1 else data
+
+                            # 1. Real time-domain waveform (64 points, normalized -1.0 to 1.0)
+                            step = max(1, len(mono) // 64)
+                            wave = mono[::step][:64]
+                            if len(wave) < 64:
+                                wave = np.pad(wave, (0, 64 - len(wave)))
+                            # Amplitude scaling for speech/singing nuances
+                            wave = np.clip(wave * 3.5, -1.0, 1.0)
+                            wave_list = [round(float(v), 3) for v in wave]
+
+                            # 2. RMS Volume
+                            rms = float(np.sqrt(np.mean(mono**2)))
+                            vol = min(1.0, rms * 5.5)
+
+                            # 3. FFT Frequency analysis
+                            windowed = mono * np.hanning(len(mono))
+                            fft = np.abs(np.fft.rfft(windowed))
+                            freqs = np.fft.rfftfreq(len(mono), 1.0 / 44100)
+
+                            # Bass: 20 - 250 Hz (sub-bass, kicks, 808s)
+                            b_mask = (freqs >= 20) & (freqs <= 250)
+                            bass = min(1.0, float(np.mean(fft[b_mask])) * 3.8) if np.any(b_mask) else 0.0
+
+                            # Vocal Mid: 250 - 1500 Hz (vocal fundamentals, vowel speech formants)
+                            vm_mask = (freqs >= 250) & (freqs <= 1500)
+                            vocal_mid = min(1.0, float(np.mean(fft[vm_mask])) * 4.8) if np.any(vm_mask) else 0.0
+
+                            # Vocal High: 1500 - 4500 Hz (speech consonants, syllables, vocal rasp)
+                            vh_mask = (freqs >= 1500) & (freqs <= 4500)
+                            vocal_high = min(1.0, float(np.mean(fft[vh_mask])) * 5.8) if np.any(vh_mask) else 0.0
+
+                            # Treble: 4500 - 16000 Hz (cymbals, sparkle, acoustic air)
+                            tr_mask = (freqs >= 4500) & (freqs <= 16000)
+                            treble = min(1.0, float(np.mean(fft[tr_mask])) * 7.5) if np.any(tr_mask) else 0.0
+
+                            # Beat / transient attack jump
+                            curr_energy = bass * 0.7 + vol * 0.3
+                            beat = min(1.0, max(0.0, curr_energy - prev_energy * 0.94) * 2.8)
+                            prev_energy = curr_energy
+
+                            # 34 frequency bars for the equalizer
+                            current_bars = np.zeros(34, dtype=np.float32)
+                            for b in range(34):
+                                m = (freqs >= freq_bins[b]) & (freqs < freq_bins[b+1])
+                                if np.any(m):
+                                    weight = 1.0 + (b / 34.0) * 1.8
+                                    current_bars[b] = min(1.0, float(np.mean(fft[m])) * 4.2 * weight)
+
+                            # Fast attack, smooth decay
+                            smooth_bars = np.where(
+                                current_bars > smooth_bars,
+                                smooth_bars * 0.25 + current_bars * 0.75,
+                                smooth_bars * 0.82 + current_bars * 0.18
+                            )
+
+                            self.latest_payload = json.dumps({
+                                'vol': round(vol, 3),
+                                'bass': round(bass, 3),
+                                'vocal_mid': round(vocal_mid, 3),
+                                'vocal_high': round(vocal_high, 3),
+                                'treble': round(treble, 3),
+                                'beat': round(beat, 3),
+                                'bars': [round(float(v), 3) for v in smooth_bars],
+                                'wave': wave_list
+                            })
+                except Exception:
+                    # Gracefully handle audio device changes or temporary unavailability
+                    time.sleep(1.0)
+
+        threading.Thread(target=run_ws, daemon=True).start()
+        threading.Thread(target=run_capture, daemon=True).start()
 
 # Screen metrics & dynamic desktop work area
 user32 = ctypes.windll.user32
@@ -772,103 +907,200 @@ HTML_TEMPLATE = """
     });
   }
 
+  // REAL-TIME AUDIO-REACTIVE DATA & INTERPOLATION (via Native WASAPI Loopback WebSocket)
+  let audioData = {
+    vol: 0,
+    bass: 0,
+    vocal_mid: 0,
+    vocal_high: 0,
+    treble: 0,
+    beat: 0,
+    bars: new Array(34).fill(0),
+    wave: new Array(64).fill(0)
+  };
+
+  let smoothVol = 0;
+  let smoothBass = 0;
+  let smoothVocalMid = 0;
+  let smoothVocalHigh = 0;
+  let smoothTreble = 0;
+  let smoothBeat = 0;
+  const smoothWave = new Array(64).fill(0);
+  const smoothBars = new Array(34).fill(0);
+
+  function connectAudioWS() {
+    const ws = new WebSocket('ws://127.0.0.1:8765');
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d) audioData = d;
+      } catch (_) {}
+    };
+    ws.onerror = () => { ws.close(); };
+    ws.onclose = () => { setTimeout(connectAudioWS, 1000); };
+  }
+  connectAudioWS();
+
   // Desktop-Wide Flowing Ribbon Waves & Atmospheric Spectrum
-  let waveTime = 0;
+  let wavePhase = 0;
   function renderDesktopWaves() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const w = canvas.width;
     const h = canvas.height;
 
-    waveTime += isPlaying ? 0.025 : 0.008;
-    const baseAmp = isPlaying ? 22 : 7;
+    // Smooth LERP of audio analysis parameters at 60 FPS
+    smoothVol += (audioData.vol - smoothVol) * 0.24;
+    smoothBass += (audioData.bass - smoothBass) * 0.30;
+    smoothVocalMid += (audioData.vocal_mid - smoothVocalMid) * 0.34;
+    smoothVocalHigh += (audioData.vocal_high - smoothVocalHigh) * 0.36;
+    smoothTreble += (audioData.treble - smoothTreble) * 0.30;
+    smoothBeat += (audioData.beat - smoothBeat) * 0.38;
+
+    for (let i = 0; i < 64; i++) {
+      const targetW = audioData.wave ? (audioData.wave[i] || 0) : 0;
+      smoothWave[i] += (targetW - smoothWave[i]) * 0.44;
+    }
+    for (let i = 0; i < 34; i++) {
+      const targetB = audioData.bars ? (audioData.bars[i] || 0) : 0;
+      smoothBars[i] += (targetB - smoothBars[i]) * 0.32;
+    }
+
+    // Baseline calm breathing phase
+    wavePhase += 0.012 + smoothVol * 0.038;
 
     const cardLeft = (w - 590) / 2;
     const cardRight = cardLeft + 590;
 
-    // Atmospheric Spectrum Bars
-    for (let lx = cardLeft - 180; lx < cardLeft - 20; lx += 9) {
+    // --- ATMOSPHERIC SPECTRUM BARS (Driven 100% by live FFT frequency data) ---
+    // Left side: Bass & Mid frequencies (bars 0 to 11)
+    let bIdx = 0;
+    for (let lx = cardLeft - 180; lx < cardLeft - 20; lx += 11) {
+      const barVal = smoothBars[bIdx % 12] || 0;
       const dist = 1 - Math.abs(lx - (cardLeft - 100)) / 90;
-      const hBar = Math.max(4, (Math.sin(waveTime * 3.5 + lx * 0.08) + 1) * (isPlaying ? 18 : 6) * dist);
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.45)';
-      ctx.shadowBlur = 8;
+      const hBar = Math.max(3, barVal * 34 * dist + (smoothVol > 0.02 ? 2 : 0));
+      ctx.fillStyle = `rgba(34, 211, 238, ${0.28 + barVal * 0.65})`;
+      ctx.shadowBlur = 8 + barVal * 14;
       ctx.shadowColor = '#06b6d4';
       ctx.fillRect(lx, h - 35 - hBar, 3.5, hBar);
+      bIdx++;
     }
 
-    for (let rx = cardRight + 20; rx < cardRight + 180; rx += 9) {
+    // Right side: Vocal Highs & Treble (bars 16 to 28)
+    bIdx = 16;
+    for (let rx = cardRight + 20; rx < cardRight + 180; rx += 11) {
+      const barVal = smoothBars[bIdx % 34] || 0;
       const dist = 1 - Math.abs(rx - (cardRight + 100)) / 90;
-      const hBar = Math.max(4, (Math.cos(waveTime * 3.2 - rx * 0.07) + 1) * (isPlaying ? 16 : 5) * dist);
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.45)';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#06b6d4';
+      const hBar = Math.max(3, barVal * 30 * dist + (smoothVol > 0.02 ? 2 : 0));
+      ctx.fillStyle = `rgba(103, 232, 249, ${0.28 + barVal * 0.65})`;
+      ctx.shadowBlur = 8 + barVal * 14;
+      ctx.shadowColor = '#22d3ee';
       ctx.fillRect(rx, h - 35 - hBar, 3.5, hBar);
+      bIdx++;
     }
 
-    // Ribbon Wave 1
+    // --- WAVE 1: VOCAL SPEECH & SINGING ENERGY RIBBON ---
+    // Reacts dynamically to real time-domain vibrations, vocal formants, syllables and words!
+    const vocalAmp = (smoothVocalMid * 44.0 + smoothVocalHigh * 32.0 + smoothVol * 14.0);
+    const speechBaseY = h * 0.68;
+
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.68);
-    for (let x = 0; x <= w; x += 6) {
-      const y = h * 0.66 + Math.sin(x * 0.005 + waveTime) * baseAmp + Math.sin(x * 0.012 - waveTime * 0.8) * (baseAmp * 0.4);
+    ctx.moveTo(0, speechBaseY);
+    for (let x = 0; x <= w; x += 5) {
+      const normX = x / w;
+      const waveIdx = Math.min(63, Math.floor(normX * 64));
+      const nextIdx = Math.min(63, waveIdx + 1);
+      const frac = (normX * 64) - waveIdx;
+      const rawWave = smoothWave[waveIdx] * (1 - frac) + smoothWave[nextIdx] * frac;
+
+      // Vocal speech modulation: combines live oscillatory voice vibrations + harmonic traveling wave
+      const voiceOscillation = rawWave * vocalAmp * 1.6;
+      const flowingEnergy = Math.sin(normX * 9.0 - wavePhase * 1.5) * (vocalAmp * 0.35 + 4.0);
+      const y = speechBaseY + voiceOscillation + flowingEnergy;
       ctx.lineTo(x, y);
     }
+
+    // Ambient glow translucent fill under vocal wave
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     ctx.closePath();
-    const grad1 = ctx.createLinearGradient(0, h * 0.5, 0, h);
-    grad1.addColorStop(0, 'rgba(6, 182, 212, 0.22)');
-    grad1.addColorStop(0.5, 'rgba(15, 23, 42, 0.28)');
+    const grad1 = ctx.createLinearGradient(0, speechBaseY - 20, 0, h);
+    const fillAlpha = Math.min(0.45, 0.08 + smoothVol * 0.28 + smoothBass * 0.2);
+    grad1.addColorStop(0, `rgba(6, 182, 212, ${fillAlpha})`);
+    grad1.addColorStop(0.5, `rgba(15, 23, 42, ${fillAlpha * 0.7})`);
     grad1.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
     ctx.fillStyle = grad1;
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = 'rgba(34, 211, 238, 0.6)';
+    ctx.shadowBlur = 16 + smoothVocalMid * 20;
+    ctx.shadowColor = 'rgba(34, 211, 238, 0.75)';
     ctx.fill();
 
+    // Sharp luminous vocal stroke
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.68);
-    for (let x = 0; x <= w; x += 6) {
-      const y = h * 0.66 + Math.sin(x * 0.005 + waveTime) * baseAmp + Math.sin(x * 0.012 - waveTime * 0.8) * (baseAmp * 0.4);
+    ctx.moveTo(0, speechBaseY);
+    for (let x = 0; x <= w; x += 5) {
+      const normX = x / w;
+      const waveIdx = Math.min(63, Math.floor(normX * 64));
+      const nextIdx = Math.min(63, waveIdx + 1);
+      const frac = (normX * 64) - waveIdx;
+      const rawWave = smoothWave[waveIdx] * (1 - frac) + smoothWave[nextIdx] * frac;
+      const voiceOscillation = rawWave * vocalAmp * 1.6;
+      const flowingEnergy = Math.sin(normX * 9.0 - wavePhase * 1.5) * (vocalAmp * 0.35 + 4.0);
+      const y = speechBaseY + voiceOscillation + flowingEnergy;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(103, 232, 249, 0.75)';
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 14;
+    ctx.strokeStyle = `rgba(103, 232, 249, ${Math.min(1.0, 0.45 + smoothVocalMid * 0.55)})`;
+    ctx.lineWidth = 1.8 + smoothVocalHigh * 1.8;
+    ctx.shadowBlur = 10 + smoothVocalMid * 18;
     ctx.shadowColor = '#22d3ee';
     ctx.stroke();
 
-    // Ribbon Wave 2
+    // --- WAVE 2: SUB-BASS & BEAT DROP PULSE RIBBON ---
+    // Deep heavy undulations that swell and pulse powerfully on 808s and bass kicks
+    const bassAmp = (smoothBass * 38.0 + smoothBeat * 26.0 + 3.0);
+    const bassBaseY = h * 0.77;
+
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.78);
+    ctx.moveTo(0, bassBaseY);
     for (let x = 0; x <= w; x += 6) {
-      const y = h * 0.74 + Math.cos(x * 0.006 - waveTime * 1.1) * (baseAmp * 0.9) + Math.sin(x * 0.015 + waveTime * 0.6) * (baseAmp * 0.35);
+      const normX = x / w;
+      const bassSwell = Math.cos(normX * 5.0 - wavePhase * 1.2) * bassAmp;
+      const subHarmonic = Math.sin(normX * 11.0 + wavePhase * 0.8) * (bassAmp * 0.28);
+      const y = bassBaseY + bassSwell + subHarmonic;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(224, 242, 254, 0.65)';
-    ctx.lineWidth = 1.8;
-    ctx.shadowBlur = 12;
+    ctx.strokeStyle = `rgba(224, 242, 254, ${Math.min(0.95, 0.35 + smoothBass * 0.6)})`;
+    ctx.lineWidth = 1.6 + smoothBeat * 2.2;
+    ctx.shadowBlur = 10 + smoothBass * 18;
     ctx.shadowColor = '#e0f2fe';
     ctx.stroke();
 
-    // Ribbon Wave 3
+    // --- WAVE 3: TREBLE & BRILLIANCE SHIMMER RIBBON ---
+    // Reacts to crisp hi-hats, vocal sibilance ("s", "sh"), and high-end acoustic air
+    const trebleAmp = (smoothTreble * 19.0 + smoothVocalHigh * 15.0 + 2.5);
+    const trebleBaseY = h * 0.85;
+
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.86);
+    ctx.moveTo(0, trebleBaseY);
     for (let x = 0; x <= w; x += 6) {
-      const y = h * 0.84 + Math.sin(x * 0.007 + waveTime * 0.9) * (baseAmp * 0.6);
+      const normX = x / w;
+      const shimmer = Math.sin(normX * 16.0 + wavePhase * 2.2) * (trebleAmp * 0.6) + Math.sin(normX * 32.0 - wavePhase * 3.0) * (trebleAmp * 0.35);
+      const y = trebleBaseY + shimmer;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 8;
+    ctx.strokeStyle = `rgba(34, 211, 238, ${Math.min(0.85, 0.25 + smoothTreble * 0.65)})`;
+    ctx.lineWidth = 1.2 + smoothTreble * 1.2;
+    ctx.shadowBlur = 6 + smoothTreble * 12;
     ctx.shadowColor = '#0891b2';
     ctx.stroke();
 
-    // Drifting particles
+    // --- DRIFTING PARTICLES (Speed & brightness react to live audio volume & beats) ---
     particles.forEach(p => {
-      p.x += p.speedX * (isPlaying ? 1.4 : 0.6);
+      p.x += p.speedX * (0.5 + smoothVol * 2.5 + smoothBeat * 1.8);
       if (p.x > w) p.x = 0;
       ctx.beginPath();
-      ctx.arc(p.x, p.y + Math.sin(p.x * 0.01 + waveTime) * 10, p.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(165, 243, 252, ${p.alpha})`;
-      ctx.shadowBlur = 6;
+      const pY = p.y + Math.sin(p.x * 0.01 + wavePhase) * (6 + smoothBass * 12);
+      ctx.arc(p.x, pY, p.radius + smoothBeat * 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(165, 243, 252, ${Math.min(1.0, p.alpha + smoothVol * 0.5)})`;
+      ctx.shadowBlur = 4 + smoothVol * 12;
       ctx.shadowColor = '#67e8f9';
       ctx.fill();
     });
@@ -877,22 +1109,13 @@ HTML_TEMPLATE = """
   }
   requestAnimationFrame(renderDesktopWaves);
 
-  // Equalizer in card
-  let simTime = 0;
+  // Equalizer in card (Driven 100% by live FFT audio frequency bands)
   function updateEqualizer() {
-    simTime += 0.12;
     for (let i = 0; i < NUM_BARS; i++) {
-      let targetHeight = 3;
-      if (isPlaying) {
-        const centerDist = 1 - Math.abs(i - NUM_BARS / 2) / (NUM_BARS / 2);
-        const wave1 = Math.sin(simTime * 2.4 + i * 0.45);
-        const wave2 = Math.cos(simTime * 1.8 - i * 0.3);
-        const rand = (Math.sin(simTime * 4.2 + i * 1.6) + 1) * 0.5;
-        const energy = Math.max(0.1, (wave1 + wave2 + rand * 1.6) / 3.6);
-        targetHeight = Math.max(3, Math.min(18, 3 + energy * 15 * centerDist + (rand * 3.5)));
-      }
+      const freqVal = smoothBars[i] || 0;
+      const targetHeight = Math.max(3, Math.min(18, 3 + freqVal * 15));
       bars[i].style.height = targetHeight + 'px';
-      bars[i].style.filter = isPlaying ? `drop-shadow(0 0 6px rgba(34, 211, 238, 0.75))` : 'none';
+      bars[i].style.filter = freqVal > 0.08 ? `drop-shadow(0 0 ${4 + freqVal * 6}px rgba(34, 211, 238, 0.85))` : 'none';
     }
     requestAnimationFrame(updateEqualizer);
   }
@@ -1311,6 +1534,10 @@ def wallpaper_watcher(api):
 def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
+
+    # Start real-time native WASAPI loopback audio engine & FFT analyzer
+    audio_engine = AudioEngine(port=AUDIO_WS_PORT)
+    audio_engine.start()
 
     # Load high-quality full resized wallpaper image
     wp_b64 = get_full_wallpaper_b64()
