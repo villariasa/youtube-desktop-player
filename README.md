@@ -2,32 +2,97 @@
 
 <div align="center">
 
-![Visualizer](https://img.shields.io/badge/Desktop-Music%20Visualizer-ec4899?style=for-the-badge&logo=youtube&logoColor=white)
-![Web Audio](https://img.shields.io/badge/Audio--Reactive-Neon%20Waves-8b5cf6?style=for-the-badge)
-![Glassmorphism](https://img.shields.io/badge/UI-Frosted%20Glassmorphism-38bdf8?style=for-the-badge)
-![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-Ubuntu%20%7C%20Arch%20%7C%20Fedora-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Audio Reactive](https://img.shields.io/badge/Audio--Reactive-WASAPI%20%7C%20PulseAudio-06b6d4?style=for-the-badge)
+![UI](https://img.shields.io/badge/UI-Adaptive%20Glassmorphism-a855f7?style=for-the-badge)
 
-**A cinematic, audio-reactive desktop music experience with glowing horizontal neon waves flowing across your entire desktop wallpaper, and a floating glassmorphism player.**
+**A cinematic, audio-reactive desktop music visualizer with speech-reactive time-domain waveforms, real FFT frequency analysis, dynamic wallpaper color blending, and YouTube non-stop streaming.**
 
 </div>
 
 ---
 
-## 🌟 Key Highlights
+## 🌟 Features
 
-- 🌊 **Desktop-Wide Neon Flowing Waves**: 4-layered harmonic neon ribbons (pink, magenta, violet, electric-blue) flowing horizontally across the entire width of your screen with real-time audio reactivity.
-- 🪟 **Futuristic Glassmorphism Widget**: Frosted dark purple/magenta tinted glass (`rgba(28, 14, 38, 0.48)`), glowing magenta neon border, and backdrop blur.
-- 📊 **Real-Time Audio Spectrum Bars**: Dynamic equalizer frequency bars inside the card reacting in real time to the bass, vocals, and energy of the music.
-- 🎮 **Full Music Controls**: Volume slider + Mute toggle, Elapsed/Total time (`0:42 / 3:12`), Previous, Glowing circular Play/Pause, Next, Shuffle, and Repeat.
-- 🔍 **User-Friendly Search**: Search any song or artist on YouTube, browse results, and click to play instantly. Zero presets.
-- 🖥️ **Desktop Layer (Never Overlaps Apps)**: Runs at desktop level (`on_top = False`) so it stays behind your active work applications.
+- 🎙️ **Real-Time Audio Analysis (System-Wide Loopback)**:
+  - Uses native Windows WASAPI loopback and Linux PulseAudio/PipeWire to capture any sound playing on your system (built-in YouTube player, Spotify, browser, Discord, or games).
+  - Multi-band FFT analysis separates sub-bass, vocal fundamentals, vocal rasp/syllables, and treble brilliance.
+- 🗣️ **Speech-Reactive Time-Domain Waveform**:
+  - The flowing desktop wave is driven directly by live 64-point time-domain oscillations and vocal formants.
+  - Fluctuates in real time to speech syllables, spoken words, vocal dynamics, and pauses.
+- 🎨 **Dynamic Wallpaper Color Blending**:
+  - Automatically samples the active desktop wallpaper and extracts the most aesthetic luminous neon accent palette.
+  - Seamlessly blends the widget glass tint, neon borders, glowing play button, equalizer bars, and flowing waves to match your desktop aesthetic.
+  - Smoothly cross-fades and morphs colors when you switch wallpapers (*Next Desktop Background*).
+- 🪟 **Real-Time Dynamic Glass Dragging**:
+  - Drag the player card anywhere across your desktop — the wallpaper background slides in 1:1 lockstep (60 FPS) like physical frosted magnifying glass.
+- 🔊 **Two-Way Device Master Volume Sync**:
+  - Widget slider matches your exact Windows/Linux system master volume.
+  - Hardware keyboard volume keys (Fn + Vol Up/Down) or taskbar changes immediately update the widget slider in real time.
+- 🔁 **YouTube Auto-Next & Non-Stop Playback**:
+  - Automatically queries and streams related songs from the current artist/genre when a track ends.
+  - Automatic error recovery prevents interruptions if a stream expires.
 
 ---
 
-## 🚀 Launch
+## 📥 Installation
 
-Double-click **`YouTube Desktop Player`** on your desktop, or run:
-```powershell
-cd C:\Github\youtube-desktop-player
-python widget.py
-```
+### 🪟 Windows (1-Click Automated Installer)
+
+1. Clone or download this repository:
+   ```cmd
+   git clone https://github.com/villariasa/youtube-desktop-player.git
+   cd youtube-desktop-player
+   ```
+2. Double-click **`install_windows.bat`** (or run `install_windows.ps1` in PowerShell).
+3. The installer will:
+   - Check Python 3.10+
+   - Automatically install all required dependencies from `requirements.txt`
+   - Create a **Desktop Shortcut** and a **Start Menu Shortcut** with a custom icon.
+   - Generate `launch.bat` for silent background execution.
+
+---
+
+### 🐧 Linux (Automated Installer)
+
+Supports **Ubuntu / Debian / Mint / Pop!_OS**, **Arch Linux / Manjaro**, **Fedora / RHEL**, and **openSUSE**.
+
+1. Clone or download this repository:
+   ```bash
+   git clone https://github.com/villariasa/youtube-desktop-player.git
+   cd youtube-desktop-player
+   ```
+2. Make the installer executable and run it:
+   ```bash
+   chmod +x install_linux.sh
+   ./install_linux.sh
+   ```
+3. The installer will:
+   - Automatically detect your distribution's package manager (`apt`, `pacman`, `dnf`, `zypper`).
+   - Install system dependencies (`webkit2gtk`, `pulseaudio`, `python3-venv`).
+   - Create an isolated virtual environment (`.venv`) and install Python requirements.
+   - Install the desktop application launcher (`~/.local/share/applications/youtube-desktop-player.desktop`) and custom icon.
+   - Create a terminal CLI command (`youtube-desktop-player`).
+
+---
+
+## 🚀 Running the Visualizer
+
+- **On Windows**: Double-click the **`Desktop Music Visualizer`** icon on your Desktop, or run `launch.bat`.
+- **On Linux**: Launch **`Desktop Music Visualizer`** from your Application Menu, or type `youtube-desktop-player` in any terminal.
+
+---
+
+## 🛠️ Controls
+
+| Control | Action |
+| :--- | :--- |
+| **Play / Pause** | Toggle playback with the glowing circular center button |
+| **Search (🔍)** | Search any song or artist on YouTube |
+| **Click to Seek** | Click anywhere on the 34 equalizer bars in the player card |
+| **Volume Slider** | Adjust volume (synchronized with your system master volume) |
+| **Prev / Next** | Skip tracks (Next automatically queries related songs if queue ends) |
+| **Shuffle / Repeat** | Toggle shuffle or track looping |
+| **Drag & Move** | Click and drag the glass player card to position it anywhere |
+| **Minimize / Close** | Minimize to background or exit |

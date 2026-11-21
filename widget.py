@@ -27,8 +27,19 @@ import numpy as np
 import soundcard as sc
 import warnings
 import colorsys
-sys.coinit_flags = 0
-from pycaw.pycaw import AudioUtilities
+
+IS_WINDOWS = sys.platform == 'win32'
+IS_LINUX = sys.platform.startswith('linux')
+
+if IS_WINDOWS:
+    sys.coinit_flags = 0
+    try:
+        from pycaw.pycaw import AudioUtilities
+    except Exception:
+        AudioUtilities = None
+else:
+    AudioUtilities = None
+
 from PIL import Image
 
 warnings.filterwarnings('ignore')
@@ -101,20 +112,72 @@ def extract_aesthetic_palette(img_path):
         return default_palette
 
 def get_system_volume():
-    """Reads the current active Windows device master volume (0.0 to 1.0)."""
-    try:
-        dev = AudioUtilities.GetSpeakers()
-        return round(float(dev.EndpointVolume.GetMasterVolumeLevelScalar()), 2)
-    except Exception:
-        return 0.28
+    """Reads the current active device master volume (0.0 to 1.0) on Windows or Linux."""
+    if IS_WINDOWS and AudioUtilities:
+        try:
+            dev = AudioUtilities.GetSpeakers()
+            return round(float(dev.EndpointVolume.GetMasterVolumeLevelScalar()), 2)
+        except Exception:
+            return 0.28
+    elif IS_LINUX:
+        try:
+            import subprocess
+            out = subprocess.check_output(['amixer', 'sget', 'Master'], text=True, stderr=subprocess.DEVNULL)
+            import re
+            m = re.search(r'\[(\d+)%\]', out)
+            if m:
+                return round(int(m.group(1)) / 100.0, 2)
+        except Exception:
+            pass
+    return 0.28
 
 def set_system_volume(vol):
-    """Sets the Windows device master volume to match the widget slider."""
-    try:
-        dev = AudioUtilities.GetSpeakers()
-        dev.EndpointVolume.SetMasterVolumeLevelScalar(max(0.0, min(1.0, float(vol))), None)
-    except Exception:
-        pass
+    """Sets the system master volume to match the widget slider on Windows or Linux."""
+    if IS_WINDOWS and AudioUtilities:
+        try:
+            dev = AudioUtilities.GetSpeakers()
+            dev.EndpointVolume.SetMasterVolumeLevelScalar(max(0.0, min(1.0, float(vol))), None)
+        except Exception:
+            pass
+    elif IS_LINUX:
+        try:
+            import subprocess
+            pct = int(max(0.0, min(1.0, float(vol))) * 100)
+            subprocess.run(['amixer', 'sset', 'Master', f'{pct}%'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+def get_active_wallpaper_path():
+    """Returns the absolute path to the active desktop wallpaper on Windows or Linux."""
+    if IS_WINDOWS:
+        wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+        if os.path.exists(wp_path):
+            return wp_path
+        return ""
+    elif IS_LINUX:
+        try:
+            import subprocess
+            out = subprocess.check_output(['gsettings', 'get', 'org.gnome.desktop.background', 'picture-uri'], text=True, stderr=subprocess.DEVNULL).strip()
+            path = out.strip("'\"").replace("file://", "")
+            if os.path.exists(path):
+                return path
+        except Exception:
+            pass
+        kde_cfg = os.path.expanduser('~/.config/plasma-org.kde.plasma.desktop-appletsrc')
+        if os.path.exists(kde_cfg):
+            try:
+                with open(kde_cfg, 'r', errors='ignore') as f:
+                    for line in f:
+                        if 'Image=' in line:
+                            p = line.split('Image=')[1].strip().replace("file://", "")
+                            if os.path.exists(p):
+                                return p
+            except Exception:
+                pass
+        for p in ['/usr/share/backgrounds/default.jpg', '/usr/share/backgrounds/default.png']:
+            if os.path.exists(p):
+                return p
+    return ""
 
 class AudioEngine:
     """
@@ -246,15 +309,27 @@ class AudioEngine:
         threading.Thread(target=run_capture, daemon=True).start()
 
 # Screen metrics & dynamic desktop work area
-user32 = ctypes.windll.user32
-import ctypes.wintypes
-SCREEN_W = user32.GetSystemMetrics(0)
-SCREEN_H = user32.GetSystemMetrics(1)
+if IS_WINDOWS:
+    user32 = ctypes.windll.user32
+    import ctypes.wintypes
+    SCREEN_W = user32.GetSystemMetrics(0)
+    SCREEN_H = user32.GetSystemMetrics(1)
 
-# Dynamically query active desktop work area (handles taskbar visible or auto-hidden)
-rect = ctypes.wintypes.RECT()
-user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0)
-WORK_BOTTOM = rect.bottom if rect.bottom > 0 else SCREEN_H
+    # Dynamically query active desktop work area (handles taskbar visible or auto-hidden)
+    rect = ctypes.wintypes.RECT()
+    user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0)
+    WORK_BOTTOM = rect.bottom if rect.bottom > 0 else SCREEN_H
+else:
+    try:
+        screens = webview.screens
+        if screens:
+            SCREEN_W = screens[0].width
+            SCREEN_H = screens[0].height
+        else:
+            SCREEN_W, SCREEN_H = 1920, 1080
+    except Exception:
+        SCREEN_W, SCREEN_H = 1920, 1080
+    WORK_BOTTOM = SCREEN_H
 
 VIS_H = 210
 VIS_W = SCREEN_W
@@ -264,8 +339,8 @@ POS_Y = max(0, WORK_BOTTOM - VIS_H)
 def get_full_wallpaper_b64():
     """Generates a high-quality resized base64 JPEG of the entire desktop wallpaper."""
     try:
-        wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
-        if not os.path.exists(wp_path):
+        wp_path = get_active_wallpaper_path()
+        if not wp_path or not os.path.exists(wp_path):
             return ""
         img = Image.open(wp_path).convert("RGB")
         img_screen = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
@@ -1658,18 +1733,19 @@ class MusicAPI:
 
 
 def wallpaper_watcher(api):
-    """Monitors Windows desktop wallpaper changes and updates full wallpaper image & dynamic aesthetic palette."""
-    wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+    """Monitors active desktop wallpaper changes and updates full wallpaper image & dynamic aesthetic palette."""
+    wp_path = get_active_wallpaper_path()
     last_mtime = 0
     try:
-        if os.path.exists(wp_path):
+        if wp_path and os.path.exists(wp_path):
             last_mtime = os.path.getmtime(wp_path)
     except Exception:
         pass
 
     while True:
         try:
-            if os.path.exists(wp_path):
+            wp_path = get_active_wallpaper_path()
+            if wp_path and os.path.exists(wp_path):
                 mtime = os.path.getmtime(wp_path)
                 if mtime != last_mtime:
                     last_mtime = mtime
@@ -1724,7 +1800,7 @@ def main():
     dev_vol = get_system_volume()
 
     # Sample and extract the best aesthetic color palette from the current wallpaper
-    wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+    wp_path = get_active_wallpaper_path()
     palette = extract_aesthetic_palette(wp_path)
 
     # Load high-quality full resized wallpaper image
