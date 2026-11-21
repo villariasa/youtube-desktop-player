@@ -25,7 +25,10 @@ import asyncio
 import websockets
 import numpy as np
 import soundcard as sc
+import warnings
 from PIL import Image
+
+warnings.filterwarnings('ignore')
 
 AUDIO_WS_PORT = 8765
 
