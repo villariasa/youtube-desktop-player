@@ -26,6 +26,7 @@ import websockets
 import numpy as np
 import soundcard as sc
 import warnings
+sys.coinit_flags = 0
 from pycaw.pycaw import AudioUtilities
 from PIL import Image
 
@@ -1568,6 +1569,11 @@ def wallpaper_watcher(api):
 
 def volume_watcher(api):
     """Monitors Windows master volume and updates the visualizer slider in real time."""
+    try:
+        import comtypes
+        comtypes.CoInitialize()
+    except Exception:
+        pass
     last_vol = -1.0
     while True:
         try:
