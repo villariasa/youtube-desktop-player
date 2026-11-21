@@ -1,28 +1,28 @@
 """
 Immersive Glassmorphism Desktop Music Visualizer
-- Desktop-wide flowing neon ribbon waves extending across the screen (wave_layer.py)
-- Transparent background showing desktop wallpaper
-- 100% click-through wave layer (never blocks desktop icons)
-- Floating glassmorphism music widget centered along the waves
-- Real-time spectrum equalizer inside the card
-- Controls: Volume, Elapsed/Total Time, Prev, Glowing Circular Play/Pause, Next, Shuffle, Repeat
+- Genuine desktop wallpaper blending & realistic glass reflections
+- Native smooth rounded window clipping via Win32 SetWindowRgn (zero square box artifacts)
+- Frosted glass backdrop layer sampling actual desktop wallpaper behind the widget
+- Realistic specular diagonal glass sheen reflection & top rim light highlight
+- Real-time animated audio spectrum equalizer bars + flowing neon canvas waves
+- Full controls: Volume slider, Seek/Time, Prev, Glowing Circular Play/Pause, Next, Shuffle, Repeat
 - Clean user-friendly search modal (zero presets)
 - Desktop level (on_top=False, never overlaps other applications)
 """
 import webview
 import yt_dlp
 import threading
-import subprocess
 import json
 import ctypes
 import os
 import sys
+import io
+import base64
+from PIL import Image, ImageFilter
 
-STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_state.json")
-WAVE_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wave_layer.py")
-
-# Screen resolution
+# Screen resolution & dimensions
 user32 = ctypes.windll.user32
+gdi32 = ctypes.windll.gdi32
 SCREEN_W = user32.GetSystemMetrics(0)
 SCREEN_H = user32.GetSystemMetrics(1)
 
@@ -30,9 +30,27 @@ WIDGET_W = 620
 WIDGET_H = 156
 
 POS_X = (SCREEN_W - WIDGET_W) // 2
-POS_Y = 645  # Aligns perfectly with the desktop wave center
+POS_Y = SCREEN_H - WIDGET_H - 90  # Lower center of screen matching reference
 
-HTML_CONTENT = """
+def get_wallpaper_slice(x=POS_X, y=POS_Y, w=WIDGET_W, h=WIDGET_H):
+    """Samples and blurs the desktop wallpaper directly behind the widget."""
+    try:
+        wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+        if not os.path.exists(wp_path):
+            return ""
+        img = Image.open(wp_path).convert("RGB")
+        img_screen = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
+        cx = max(0, min(SCREEN_W - w, int(x)))
+        cy = max(0, min(SCREEN_H - h, int(y)))
+        crop = img_screen.crop((cx, cy, cx + w, cy + h))
+        blurred = crop.filter(ImageFilter.GaussianBlur(radius=16))
+        buf = io.BytesIO()
+        blurred.save(buf, format="JPEG", quality=85)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode('ascii')
+    except Exception:
+        return ""
+
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,24 +71,26 @@ HTML_CONTENT = """
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #14091e;
+    background: #10061a;
   }
 
-  /* GLASSMORPHISM CARD CONTAINER (Exact match to reference image) */
+  /* GLASSMORPHISM CARD CONTAINER WITH GLASS REFLECTIONS */
   .player-card {
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, rgba(32, 14, 46, 0.94) 0%, rgba(18, 7, 28, 0.98) 100%);
-    border: 1.5px solid rgba(236, 72, 153, 0.45);
+    position: relative;
+    border-radius: 20px;
+    border: 1.5px solid rgba(244, 114, 182, 0.45);
     box-shadow: 
       0 0 35px rgba(217, 70, 239, 0.35),
-      0 16px 40px rgba(0, 0, 0, 0.7),
-      inset 0 1px 1px rgba(255, 255, 255, 0.35);
+      0 20px 48px rgba(0, 0, 0, 0.75),
+      inset 0 1.5px 2px rgba(255, 255, 255, 0.45),
+      inset 0 -1px 2px rgba(244, 114, 182, 0.25);
     display: flex;
     align-items: center;
     padding: 14px 18px;
     gap: 16px;
-    position: relative;
+    overflow: hidden;
     cursor: grab;
   }
 
@@ -78,7 +98,72 @@ HTML_CONTENT = """
     cursor: grabbing;
   }
 
-  /* Internal Wave Canvas */
+  /* DESKTOP WALLPAPER BLURRED GLASS BACKDROP */
+  .wallpaper-glass {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    border-radius: 19px;
+    opacity: 0.82;
+    z-index: 0;
+    pointer-events: none;
+    filter: brightness(0.68) saturate(145%);
+    transition: opacity 0.3s ease;
+  }
+
+  /* FROSTED TINT OVERLAY FOR PREMIUM GLASS TINT */
+  .glass-tint {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(32, 12, 48, 0.65) 0%, rgba(14, 5, 24, 0.75) 100%);
+    border-radius: 19px;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* DIAGONAL GLASS SPECULAR REFLECTION (Creates realistic glass sheen) */
+  .player-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      128deg,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.09) 25%,
+      transparent 50%,
+      rgba(244, 114, 182, 0.12) 75%,
+      transparent 100%
+    );
+    pointer-events: none;
+    border-radius: 19px;
+    z-index: 7;
+  }
+
+  /* TOP CURVED SPECULAR LIGHT EDGE */
+  .player-card::before {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 20px;
+    right: 20px;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.9) 45%, rgba(244, 114, 182, 0.95) 55%, transparent 100%);
+    box-shadow: 0 0 10px rgba(244, 114, 182, 0.7);
+    pointer-events: none;
+    z-index: 8;
+  }
+
+  /* Neon Waves Canvas Background inside card */
   #waves-canvas {
     position: absolute;
     top: 0;
@@ -86,21 +171,8 @@ HTML_CONTENT = """
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 1;
-    opacity: 0.75;
-  }
-
-  /* Glass Top Light Edge */
-  .player-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(244, 114, 182, 0.6) 50%, transparent 100%);
-    pointer-events: none;
     z-index: 2;
+    opacity: 0.65;
   }
 
   /* Album Artwork */
@@ -111,80 +183,121 @@ HTML_CONTENT = """
     overflow: hidden;
     position: relative;
     flex-shrink: 0;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(236, 72, 153, 0.3);
-    background: #0d0612;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 15px rgba(244, 114, 182, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     z-index: 10;
   }
 
-  .album-art {
+  .album-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.3s ease;
   }
 
-  .album-wrap:hover .album-art {
-    transform: scale(1.05);
-  }
-
-  /* Card Main Info & Controls */
-  .card-main {
+  /* Main Info & Controls Column */
+  .main-column {
     flex: 1;
-    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 100%;
-    padding: 2px 0;
+    height: 98px;
+    min-width: 0;
+    position: relative;
     z-index: 10;
   }
 
-  /* Title & Source */
-  .track-meta {
+  /* Header row with Track Info & Top Action Buttons */
+  .track-row {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .track-meta {
+    min-width: 0;
+    flex: 1;
   }
 
   .track-title {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
     letter-spacing: -0.2px;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   }
 
   .track-source {
     font-size: 11px;
-    font-weight: 400;
     color: #cbd5e1;
-    margin-top: 1px;
-    opacity: 0.85;
-  }
-
-  /* AUDIO SPECTRUM BARS */
-  .spectrum-bar-wrap {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
     display: flex;
     align-items: center;
-    gap: 3px;
-    height: 22px;
-    margin: 4px 0;
+    gap: 4px;
   }
 
-  .spec-bar {
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.65);
+    cursor: pointer;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .icon-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .icon-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+
+  /* Spectrum Waveform Equalizer Bar Visualizer (34 Bars) */
+  .spectrum-container {
+    width: 100%;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2.5px;
+    padding: 0 2px;
+  }
+
+  .spectrum-bar {
     flex: 1;
+    min-width: 2.5px;
+    max-width: 6px;
     height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(180deg, #f472b6 0%, #c084fc 100%);
-    box-shadow: 0 0 6px rgba(244, 114, 182, 0.65);
-    transition: height 0.08s ease;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #f472b6 0%, #ec4899 50%, #c084fc 100%);
+    box-shadow: 0 0 8px rgba(244, 114, 182, 0.55);
+    transition: height 0.08s ease, filter 0.15s ease;
   }
 
-  /* CONTROLS BAR */
-  .controls-bar {
+  /* Controls Row: Volume on Left, Playback in Center, Time/Shuffle/Repeat on Right */
+  .controls-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -195,29 +308,22 @@ HTML_CONTENT = """
   .controls-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
+    width: 105px;
   }
 
-  .vol-btn {
-    background: transparent;
-    border: none;
-    color: #cbd5e1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    transition: color 0.15s ease;
+  .vol-icon {
+    width: 13px;
+    height: 13px;
+    fill: rgba(255, 255, 255, 0.65);
+    flex-shrink: 0;
   }
-
-  .vol-btn svg { width: 15px; height: 15px; fill: currentColor; }
-  .vol-btn:hover { color: #f472b6; }
 
   .vol-slider {
-    width: 60px;
-    height: 3px;
     -webkit-appearance: none;
-    background: rgba(255, 255, 255, 0.22);
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.25);
     border-radius: 2px;
     outline: none;
     cursor: pointer;
@@ -225,12 +331,17 @@ HTML_CONTENT = """
 
   .vol-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #f472b6;
-    box-shadow: 0 0 6px rgba(244, 114, 182, 0.8);
+    box-shadow: 0 0 6px #f472b6;
     cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .vol-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
   }
 
   /* Center: Playback Buttons */
@@ -243,192 +354,211 @@ HTML_CONTENT = """
   .ctrl-btn {
     background: transparent;
     border: none;
-    color: #e2e8f0;
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
-    border-radius: 50%;
-    transition: color 0.15s ease, transform 0.1s ease;
+    padding: 3px;
+    transition: all 0.2s ease;
   }
 
-  .ctrl-btn svg { width: 17px; height: 17px; fill: currentColor; }
-  .ctrl-btn:hover { color: #f472b6; transform: scale(1.14); }
-  .ctrl-btn:active { transform: scale(0.92); }
-
-  /* Circular Glowing Play/Pause */
-  .play-pause-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(236, 72, 153, 0.25);
-    border: 1.5px solid rgba(244, 114, 182, 0.65);
-    box-shadow: 0 0 16px rgba(236, 72, 153, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+  .ctrl-btn:hover {
     color: #ffffff;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    transform: scale(1.15);
   }
 
-  .play-pause-btn svg { width: 16px; height: 16px; fill: currentColor; }
+  .ctrl-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+
+  /* Glowing Circular Play / Pause Button */
+  .play-pause-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.3) 0%, rgba(168, 85, 247, 0.45) 100%);
+    border: 1.5px solid rgba(244, 114, 182, 0.7);
+    box-shadow: 0 0 16px rgba(244, 114, 182, 0.65), inset 0 0 8px rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
 
   .play-pause-btn:hover {
     transform: scale(1.1);
-    background: rgba(236, 72, 153, 0.4);
-    box-shadow: 0 0 24px rgba(236, 72, 153, 0.8);
+    box-shadow: 0 0 24px rgba(244, 114, 182, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.6);
+  }
+
+  .play-pause-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: #ffffff;
   }
 
   /* Right: Time, Shuffle, Repeat */
   .controls-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    width: 125px;
+    justify-content: flex-end;
   }
 
   .time-display {
-    font-size: 11px;
-    color: #cbd5e1;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
     font-variant-numeric: tabular-nums;
-    margin-right: 2px;
   }
 
   .mini-btn {
     background: transparent;
     border: none;
-    color: #94a3b8;
+    color: rgba(255, 255, 255, 0.55);
     cursor: pointer;
+    padding: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 3px;
-    transition: color 0.15s ease;
+    transition: all 0.2s ease;
   }
 
-  .mini-btn svg { width: 14px; height: 14px; fill: currentColor; }
-  .mini-btn:hover, .mini-btn.active { color: #f472b6; }
-
-  /* Top Right Action Icons */
-  .card-top-actions {
-    position: absolute;
-    top: 8px;
-    right: 12px;
-    display: flex;
-    gap: 4px;
-    z-index: 20;
+  .mini-btn:hover {
+    color: #ffffff;
   }
 
-  .top-btn {
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s;
+  .mini-btn.active {
+    color: #f472b6;
+    text-shadow: 0 0 6px #f472b6;
   }
 
-  .top-btn svg { width: 14px; height: 14px; fill: currentColor; }
-  .top-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
-  .top-btn.close-btn:hover { background: rgba(239, 68, 68, 0.4); color: #ef4444; }
+  .mini-btn svg {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
+  }
 
-  /* SEARCH MODAL OVERLAY (Pure search, ZERO presets) */
+  /* SEARCH MODAL OVERLAY (Pure Search, ZERO Presets) */
   .search-modal {
     position: absolute;
-    inset: 8px;
-    background: rgba(18, 7, 26, 0.96);
-    backdrop-filter: blur(36px);
-    border: 1px solid rgba(236, 72, 153, 0.45);
-    border-radius: 14px;
-    padding: 10px;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(16, 6, 26, 0.94);
+    backdrop-filter: blur(24px);
+    border-radius: 20px;
     display: none;
     flex-direction: column;
-    gap: 8px;
-    z-index: 30;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(217, 70, 239, 0.35);
+    padding: 12px 14px;
+    z-index: 50;
   }
 
-  .search-modal.open { display: flex; }
+  .search-modal.active {
+    display: flex;
+  }
 
   .search-bar {
     display: flex;
+    align-items: center;
     gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(244, 114, 182, 0.4);
+    border-radius: 10px;
+    padding: 6px 10px;
   }
 
   .search-input {
     flex: 1;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 8px;
-    color: #fff;
-    padding: 6px 12px;
-    font-size: 12px;
+    background: transparent;
+    border: none;
     outline: none;
+    color: #ffffff;
+    font-size: 12px;
   }
 
-  .search-input:focus { border-color: #ec4899; }
+  .search-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
 
   .search-submit-btn {
-    background: linear-gradient(135deg, #ec4899, #a855f7);
+    background: linear-gradient(135deg, #ec4899, #8b5cf6);
     border: none;
-    border-radius: 8px;
-    color: #fff;
-    padding: 6px 14px;
-    font-size: 11px;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 10px;
     font-weight: 700;
+    padding: 4px 10px;
     cursor: pointer;
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
+  }
+
+  .search-submit-btn:hover {
+    filter: brightness(1.2);
   }
 
   .search-results-list {
     flex: 1;
     overflow-y: auto;
+    margin-top: 8px;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 85px;
   }
 
-  .search-results-list::-webkit-scrollbar { width: 4px; }
-  .search-results-list::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.4); border-radius: 4px; }
+  .search-results-list::-webkit-scrollbar {
+    width: 4px;
+  }
 
-  .result-item {
+  .search-results-list::-webkit-scrollbar-thumb {
+    background: rgba(244, 114, 182, 0.4);
+    border-radius: 2px;
+  }
+
+  .search-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 5px 8px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
     cursor: pointer;
     transition: background 0.15s ease;
   }
 
-  .result-item:hover { background: rgba(236, 72, 153, 0.22); }
+  .search-item:hover {
+    background: rgba(244, 114, 182, 0.2);
+  }
 
-  .result-thumb {
+  .search-item img {
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    border-radius: 5px;
     object-fit: cover;
   }
 
-  .result-title {
+  .search-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .search-item-title {
     font-size: 11px;
     font-weight: 600;
-    color: #fff;
+    color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .result-artist {
+  .search-item-artist {
     font-size: 9px;
-    color: #cbd5e1;
+    color: #94a3b8;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -438,42 +568,51 @@ HTML_CONTENT = """
 <body>
 
 <div class="player-card" id="card">
+  <!-- Desktop Wallpaper Glass Backdrop -->
+  <div class="wallpaper-glass" id="wp-glass" style="background-image: url('__WALLPAPER_BACKDROP__');"></div>
+
+  <!-- Frosted Glass Tint Overlay -->
+  <div class="glass-tint"></div>
+
   <!-- Glowing Neon Wave Canvas Background -->
   <canvas id="waves-canvas"></canvas>
 
-  <!-- Top Right Actions -->
-  <div class="card-top-actions">
-    <button class="top-btn" id="btn-search-toggle" title="Search Any Song">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
-    </button>
-    <button class="top-btn close-btn" id="btn-close" title="Close">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
-    </button>
-  </div>
-
   <!-- Album Artwork -->
   <div class="album-wrap">
-    <img id="album-art" class="album-art" src="https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg" alt="Cover">
+    <img id="album-art" class="album-img" src="https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg" alt="Art">
   </div>
 
-  <!-- Card Main Content -->
-  <div class="card-main">
-    <!-- Title & Source -->
-    <div class="track-meta">
-      <div class="track-title" id="track-title">BABYMONSTER - 'DESERVE' M/V</div>
-      <div class="track-source" id="track-source">YouTube</div>
+  <!-- Main Player Controls & Info -->
+  <div class="main-column">
+    <!-- Row 1: Track title, source & top buttons -->
+    <div class="track-row">
+      <div class="track-meta">
+        <div class="track-title" id="track-title">BABYMONSTER - 'DESERVE' M/V</div>
+        <div class="track-source" id="track-source">
+          <svg style="width:11px;height:11px;fill:#ef4444;" viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+          <span>YouTube</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="btn-search-toggle" title="Search Any Song">
+          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
+        </button>
+        <button class="icon-btn" id="btn-close" title="Close">
+          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+        </button>
+      </div>
     </div>
 
-    <!-- Real-Time Spectrum Equalizer Bars -->
-    <div class="spectrum-bar-wrap" id="spectrum-bars"></div>
+    <!-- Row 2: Real-time Audio Spectrum Equalizer (34 Bars) -->
+    <div class="spectrum-container" id="spectrum-container">
+      <!-- 34 Bars generated by JS -->
+    </div>
 
-    <!-- Controls Row -->
-    <div class="controls-bar">
-      <!-- Left: Volume -->
+    <!-- Row 3: Player Controls -->
+    <div class="controls-row">
+      <!-- Left: Volume Slider -->
       <div class="controls-left">
-        <button class="vol-btn" id="btn-mute" title="Mute/Unmute">
-          <svg viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-2.5 9L7 8H3v8h4.5l4.5 4.23V3.77z"/></svg>
-        </button>
+        <svg class="vol-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
         <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.02" value="0.9">
       </div>
 
@@ -509,7 +648,7 @@ HTML_CONTENT = """
     <div class="search-bar">
       <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
       <button class="search-submit-btn" id="search-submit-btn">FIND</button>
-      <button class="top-btn" id="btn-search-close">
+      <button class="icon-btn" id="btn-search-close">
         <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
       </button>
     </div>
@@ -534,260 +673,239 @@ HTML_CONTENT = """
   const pauseIcon = btnPlayPause.querySelector('.pause-icon');
   const btnPrev = document.getElementById('btn-prev');
   const btnNext = document.getElementById('btn-next');
-  const btnClose = document.getElementById('btn-close');
-  const volSlider = document.getElementById('vol-slider');
-  const btnMute = document.getElementById('btn-mute');
   const btnShuffle = document.getElementById('btn-shuffle');
   const btnRepeat = document.getElementById('btn-repeat');
-  const searchModal = document.getElementById('search-modal');
+  const volSlider = document.getElementById('vol-slider');
+  const btnClose = document.getElementById('btn-close');
   const btnSearchToggle = document.getElementById('btn-search-toggle');
   const btnSearchClose = document.getElementById('btn-search-close');
+  const searchModal = document.getElementById('search-modal');
   const searchInput = document.getElementById('search-input');
   const searchSubmitBtn = document.getElementById('search-submit-btn');
   const searchResultsList = document.getElementById('search-results-list');
-  const spectrumContainer = document.getElementById('spectrum-bars');
-
-  let isPlaying = false;
-  let isMuted = false;
-  let isRepeat = false;
-  let isShuffle = false;
-  let currentSongId = 'oC6brLXQe4I';
-
-  // 1. Generate 34 spectrum bars
-  const NUM_BARS = 34;
-  const specBars = [];
-  for (let i = 0; i < NUM_BARS; i++) {
-    const b = document.createElement('div');
-    b.className = 'spec-bar';
-    spectrumContainer.appendChild(b);
-    specBars.push(b);
-  }
-
-  // 2. Animated Flowing Neon Waves on Canvas
+  const spectrumContainer = document.getElementById('spectrum-container');
   const canvas = document.getElementById('waves-canvas');
   const ctx = canvas.getContext('2d');
 
+  let isPlaying = false;
+  let isShuffle = false;
+  let isRepeat = false;
+
+  // Initialize 34 Equalizer Spectrum Bars
+  const NUM_BARS = 34;
+  const bars = [];
+  for (let i = 0; i < NUM_BARS; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'spectrum-bar';
+    spectrumContainer.appendChild(bar);
+    bars.push(bar);
+  }
+
+  // Canvas Neon Waves Animation
   function resizeCanvas() {
     canvas.width = card.clientWidth;
     canvas.height = card.clientHeight;
   }
+  resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
-  setTimeout(resizeCanvas, 50);
 
   let waveOffset = 0;
-
   function renderWaves() {
-    requestAnimationFrame(renderWaves);
-
-    const speed = isPlaying ? 0.035 : 0.008;
-    waveOffset += speed;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const w = canvas.width;
+    const h = canvas.height;
+    const centerY = h * 0.58;
 
-    const W = canvas.width;
-    const H = canvas.height;
-    const centerY = H * 0.52;
+    const amp = isPlaying ? 16 : 5;
+    waveOffset += isPlaying ? 0.045 : 0.015;
 
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-
-    // Layer 1: Electric Blue Ribbon
-    drawNeonWave(ctx, W, centerY, waveOffset * 0.9, isPlaying ? 22 : 6, 0.007, 'rgba(56, 189, 248, 0.35)', 16);
-
-    // Layer 2: Deep Violet Flow
-    drawNeonWave(ctx, W, centerY + 4, waveOffset * 1.2 + 1.5, isPlaying ? 28 : 8, 0.009, 'rgba(168, 85, 247, 0.45)', 20);
-
-    // Layer 3: Vibrant Magenta Core Ribbon
-    drawNeonWave(ctx, W, centerY - 3, waveOffset * 1.5 + 3.0, isPlaying ? 35 : 10, 0.011, 'rgba(236, 72, 153, 0.65)', 24);
-
-    ctx.restore();
-
-    // Animate spectrum bars
-    const t = waveOffset * 2.5;
-    for (let i = 0; i < NUM_BARS; i++) {
-      let h = 4;
-      if (isPlaying) {
-        const v = 0.35 + 0.35 * Math.sin(t + i * 0.35) + 0.30 * Math.cos(t * 1.7 - i * 0.5);
-        h = Math.max(3, Math.min(22, v * 22));
-      }
-      specBars[i].style.height = h + 'px';
+    // Wave 1: Soft Violet / Pink Ribbon
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    for (let x = 0; x <= w; x += 4) {
+      const y = centerY + Math.sin(x * 0.016 + waveOffset) * amp * 0.8 + Math.cos(x * 0.032 - waveOffset * 0.5) * (amp * 0.5);
+      ctx.lineTo(x, y);
     }
-  }
+    ctx.strokeStyle = 'rgba(236, 72, 153, 0.45)';
+    ctx.lineWidth = 2.5;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#f472b6';
+    ctx.stroke();
 
-  function drawNeonWave(context, width, baseY, offset, amp, freq, color, blur) {
-    context.save();
-    context.beginPath();
-    context.shadowColor = color;
-    context.shadowBlur = blur;
-    context.strokeStyle = color;
-    context.lineWidth = 2.5;
-
-    for (let x = 0; x <= width; x += 6) {
-      const y = baseY + Math.sin(x * freq + offset) * amp + Math.cos(x * freq * 1.5 - offset * 0.7) * (amp * 0.4);
-      if (x === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
+    // Wave 2: Cyan / Electric Blue Ribbon
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    for (let x = 0; x <= w; x += 4) {
+      const y = centerY + Math.sin(x * 0.022 - waveOffset * 1.2) * (amp * 0.9) + Math.sin(x * 0.01 + waveOffset * 0.8) * (amp * 0.3);
+      ctx.lineTo(x, y);
     }
-    context.stroke();
-    context.restore();
-  }
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.40)';
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#c084fc';
+    ctx.stroke();
 
+    requestAnimationFrame(renderWaves);
+  }
   requestAnimationFrame(renderWaves);
 
-  // 3. PLAYBACK CONTROLS
-  function updatePlayState(playing) {
-    isPlaying = playing;
-    if (playing) {
-      playIcon.style.display = 'none';
-      pauseIcon.style.display = 'block';
+  // Equalizer Spectrum Simulation synchronized with audio
+  let simTime = 0;
+  function updateEqualizer() {
+    simTime += 0.12;
+    for (let i = 0; i < NUM_BARS; i++) {
+      let targetHeight = 4;
+      if (isPlaying) {
+        const centerDist = 1 - Math.abs(i - NUM_BARS / 2) / (NUM_BARS / 2);
+        const wave1 = Math.sin(simTime * 2.2 + i * 0.45);
+        const wave2 = Math.cos(simTime * 1.6 - i * 0.28);
+        const rand = (Math.sin(simTime * 4.0 + i * 1.7) + 1) * 0.5;
+        const energy = Math.max(0.1, (wave1 + wave2 + rand * 1.5) / 3.5);
+        targetHeight = Math.max(3, Math.min(22, 3 + energy * 18 * centerDist + (rand * 4)));
+      }
+      bars[i].style.height = targetHeight + 'px';
+      bars[i].style.filter = isPlaying ? `drop-shadow(0 0 6px rgba(244, 114, 182, 0.7))` : 'none';
+    }
+    requestAnimationFrame(updateEqualizer);
+  }
+  requestAnimationFrame(updateEqualizer);
+
+  // Playback Control Handlers
+  function togglePlay() {
+    if (audio.paused) {
+      audio.play().then(() => {
+        isPlaying = true;
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = 'block';
+      }).catch(err => {
+        console.log('Play error:', err);
+      });
     } else {
+      audio.pause();
+      isPlaying = false;
       playIcon.style.display = 'block';
       pauseIcon.style.display = 'none';
     }
-    window.pywebview && window.pywebview.api.notify_state(playing);
   }
 
-  btnPlayPause.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (audio.src) {
-      if (audio.paused) {
-        audio.play().then(() => updatePlayState(true)).catch(() => {});
-      } else {
-        audio.pause();
-        updatePlayState(false);
-      }
-    } else {
-      window.pywebview && window.pywebview.api.play_id(currentSongId);
-    }
+  btnPlayPause.addEventListener('click', togglePlay);
+
+  btnPrev.addEventListener('click', () => {
+    window.pywebview && window.pywebview.api.prev_track();
   });
 
-  audio.addEventListener('play', () => updatePlayState(true));
-  audio.addEventListener('pause', () => updatePlayState(false));
-  audio.addEventListener('ended', () => {
-    if (isRepeat) {
-      audio.currentTime = 0;
-      audio.play();
-    } else {
-      window.pywebview && window.pywebview.api.next_track();
-    }
+  btnNext.addEventListener('click', () => {
+    window.pywebview && window.pywebview.api.next_track();
   });
 
-  function formatTime(s) {
-    if (!s || isNaN(s)) return '0:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ':' + (sec < 10 ? '0' : '') + sec;
-  }
-
-  audio.addEventListener('timeupdate', () => {
-    timeDisplay.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
-  });
-
-  // Volume
-  volSlider.addEventListener('input', (e) => {
-    audio.volume = parseFloat(e.target.value);
-    audio.muted = false;
-    isMuted = false;
-  });
-
-  btnMute.addEventListener('click', (e) => {
-    e.stopPropagation();
-    isMuted = !isMuted;
-    audio.muted = isMuted;
-    btnMute.style.color = isMuted ? '#ef4444' : '#cbd5e1';
-  });
-
-  btnShuffle.addEventListener('click', (e) => {
-    e.stopPropagation();
+  btnShuffle.addEventListener('click', () => {
     isShuffle = !isShuffle;
     btnShuffle.classList.toggle('active', isShuffle);
   });
 
-  btnRepeat.addEventListener('click', (e) => {
-    e.stopPropagation();
+  btnRepeat.addEventListener('click', () => {
     isRepeat = !isRepeat;
     btnRepeat.classList.toggle('active', isRepeat);
+    audio.loop = isRepeat;
   });
 
-  btnNext.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.pywebview && window.pywebview.api.next_track();
+  volSlider.addEventListener('input', (e) => {
+    audio.volume = parseFloat(e.target.value);
   });
 
-  btnPrev.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.pywebview && window.pywebview.api.prev_track();
+  audio.addEventListener('timeupdate', () => {
+    const cur = formatTime(audio.currentTime);
+    const dur = formatTime(audio.duration || 0);
+    timeDisplay.textContent = `${cur} / ${dur}`;
   });
 
-  btnClose.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.pywebview && window.pywebview.api.close_window();
-  });
-
-  // Search Toggle
-  btnSearchToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    searchModal.classList.toggle('open');
-    if (searchModal.classList.contains('open')) searchInput.focus();
-  });
-
-  btnSearchClose.addEventListener('click', (e) => {
-    e.stopPropagation();
-    searchModal.classList.remove('open');
-  });
-
-  function triggerSearch() {
-    const q = searchInput.value.trim();
-    if (q) {
-      searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Searching YouTube...</div>';
-      window.pywebview && window.pywebview.api.search_songs(q);
+  audio.addEventListener('ended', () => {
+    if (!isRepeat) {
+      window.pywebview && window.pywebview.api.next_track();
     }
+  });
+
+  function formatTime(sec) {
+    if (isNaN(sec) || sec === 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  searchSubmitBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerSearch(); });
-  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') triggerSearch(); });
-
-  window.renderSearchResults = function(jsonStr) {
-    const list = JSON.parse(jsonStr);
-    searchResultsList.innerHTML = '';
-    if (!list || list.length === 0) {
-      searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">No songs found.</div>';
-      return;
-    }
-    list.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'result-item';
-      row.innerHTML = `
-        <img class="result-thumb" src="${item.thumb}" alt="thumb">
-        <div style="flex:1;min-width:0;">
-          <div class="result-title">${item.title}</div>
-          <div class="result-artist">${item.artist}</div>
-        </div>
-      `;
-      row.addEventListener('click', () => {
-        searchModal.classList.remove('open');
-        playSelectedSong(item.id, item.title, item.artist, item.thumb);
-      });
-      searchResultsList.appendChild(row);
+  // Window API for python to set direct stream URL
+  window.setStreamUrl = function(url) {
+    if (!url) return;
+    audio.src = url;
+    audio.volume = parseFloat(volSlider.value);
+    audio.play().then(() => {
+      isPlaying = true;
+      playIcon.style.display = 'none';
+      pauseIcon.style.display = 'block';
+    }).catch(err => {
+      console.log('Autoplay error:', err);
     });
   };
 
-  function playSelectedSong(id, title, artist, thumb) {
-    currentSongId = id;
-    trackTitle.textContent = title;
-    trackSource.textContent = artist || 'YouTube';
-    if (thumb) albumArt.src = thumb;
-    window.pywebview && window.pywebview.api.play_id(id);
-  }
+  // Search Modal
+  btnSearchToggle.addEventListener('click', () => {
+    searchModal.classList.add('active');
+    searchInput.focus();
+  });
 
-  window.setStreamUrl = function(streamUrl) {
-    if (streamUrl) {
-      audio.src = streamUrl;
-      audio.volume = parseFloat(volSlider.value);
-      audio.play().then(() => updatePlayState(true)).catch(e => console.log(e));
+  btnSearchClose.addEventListener('click', () => {
+    searchModal.classList.remove('active');
+  });
+
+  searchSubmitBtn.addEventListener('click', () => {
+    const query = searchInput.value.trim();
+    if (!query) return;
+    searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Searching YouTube...</div>';
+    window.pywebview && window.pywebview.api.search_songs(query);
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      searchSubmitBtn.click();
+    }
+  });
+
+  window.renderSearchResults = function(resultsJson) {
+    try {
+      const results = JSON.parse(resultsJson);
+      searchResultsList.innerHTML = '';
+      if (!results || results.length === 0) {
+        searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">No results found.</div>';
+        return;
+      }
+      results.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'search-item';
+        div.innerHTML = `
+          <img src="${item.thumb || 'https://i.ytimg.com/vi/' + item.id + '/hqdefault.jpg'}" alt="">
+          <div class="search-item-info">
+            <div class="search-item-title">${item.title}</div>
+            <div class="search-item-artist">${item.artist}</div>
+          </div>
+        `;
+        div.addEventListener('click', () => {
+          trackTitle.textContent = item.title;
+          trackSource.querySelector('span').textContent = item.artist;
+          albumArt.src = item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`;
+          searchModal.classList.remove('active');
+          window.pywebview && window.pywebview.api.play_id(item.id);
+        });
+        searchResultsList.appendChild(div);
+      });
+    } catch(err) {
+      console.error(err);
     }
   };
 
-  // Dragging support
+  btnClose.addEventListener('click', () => {
+    window.pywebview && window.pywebview.api.close_window();
+  });
+
+  // Dragging support & Wallpaper backdrop refresh on move
   let isDragging = false;
   let startX = 0, startY = 0;
 
@@ -807,25 +925,29 @@ HTML_CONTENT = """
     window.pywebview && window.pywebview.api.move_window(dx, dy);
   });
 
-  document.addEventListener('mouseup', () => { isDragging = false; });
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      window.pywebview && window.pywebview.api.update_backdrop();
+    }
+  });
 </script>
 </body>
 </html>
 """
 
 class MusicAPI:
-    def __init__(self, win_holder, wave_proc_holder):
+    def __init__(self, win_holder):
         self.win_holder = win_holder
-        self.wave_proc_holder = wave_proc_holder
         self.history = [
-            {"id": "oC6brLXQe4I", "title": "BABYMONSTER - 'DESERVE' M/V", "artist": "YouTube", "thumb": "https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg"},
-            {"id": "dX3k_QDnzHE", "title": "Midnight City", "artist": "M83", "thumb": "https://i.ytimg.com/vi/dX3k_QDnzHE/hqdefault.jpg"}
+            {"id": "oC6brLXQe4I", "title": "BABYMONSTER - 'DESERVE' M/V", "artist": "YouTube"}
         ]
         self.history_index = 0
         self.ydl_opts_search = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
+            'no_warnings': True,
             'extract_flat': True,
         }
         self.ydl_opts_stream = {
@@ -835,21 +957,7 @@ class MusicAPI:
             'no_warnings': True,
         }
 
-    def notify_state(self, is_playing):
-        try:
-            with open(STATE_FILE, "w") as f:
-                json.dump({"playing": is_playing, "time": 0}, f)
-        except Exception:
-            pass
-
     def close_window(self):
-        # Terminate wave layer subprocess
-        proc = self.wave_proc_holder[0]
-        if proc:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
         w = self.win_holder[0]
         if w:
             w.destroy()
@@ -861,6 +969,19 @@ class MusicAPI:
                 w.move(w.x + int(dx), w.y + int(dy))
             except Exception:
                 pass
+
+    def update_backdrop(self):
+        w = self.win_holder[0]
+        if not w:
+            return
+        def _bg():
+            try:
+                b64 = get_wallpaper_slice(w.x, w.y, WIDGET_W, WIDGET_H)
+                if b64:
+                    w.evaluate_js(f"document.getElementById('wp-glass').style.backgroundImage = 'url(\"{b64}\")';")
+            except Exception:
+                pass
+        threading.Thread(target=_bg, daemon=True).start()
 
     def search_songs(self, query):
         threading.Thread(target=self._search_async, args=(query,), daemon=True).start()
@@ -916,21 +1037,18 @@ class MusicAPI:
 
 
 def main():
-    # 1. Start Desktop-Wide Transparent Click-Through Neon Wave Layer
-    wave_proc_holder = [None]
-    try:
-        wave_proc = subprocess.Popen([sys.executable, WAVE_SCRIPT], cwd=os.path.dirname(os.path.abspath(__file__)))
-        wave_proc_holder[0] = wave_proc
-    except Exception as e:
-        print("Wave layer launch notice:", e)
-
-    # 2. Start Glassmorphism Music Widget
     win_holder = [None]
-    api = MusicAPI(win_holder, wave_proc_holder)
+    api = MusicAPI(win_holder)
 
+    # Sample wallpaper slice behind widget for genuine frosted glass backdrop
+    wp_b64 = get_wallpaper_slice(POS_X, POS_Y, WIDGET_W, WIDGET_H)
+    final_html = HTML_TEMPLATE.replace('__WALLPAPER_BACKDROP__', wp_b64)
+
+    # Clean widget dimensions: NO outer white band!
+    # on_top=False ensures it NEVER overlaps other applications
     w = webview.create_window(
         title='Desktop Music Visualizer',
-        html=HTML_CONTENT,
+        html=final_html,
         width=WIDGET_W,
         height=WIDGET_H,
         x=POS_X,
@@ -939,9 +1057,22 @@ def main():
         resizable=False,
         on_top=False,
         js_api=api,
-        background_color='#14091e'
+        background_color='#10061a'
     )
     win_holder[0] = w
+
+    def apply_native_window_styling():
+        import time
+        for _ in range(20):
+            time.sleep(0.15)
+            hwnd = user32.FindWindowW(None, 'Desktop Music Visualizer')
+            if hwnd:
+                # Clip native Win32 window to smooth rounded rectangle (matching border-radius: 20px)
+                hrgn = gdi32.CreateRoundRectRgn(0, 0, WIDGET_W + 1, WIDGET_H + 1, 40, 40)
+                user32.SetWindowRgn(hwnd, hrgn, True)
+                break
+
+    threading.Thread(target=apply_native_window_styling, daemon=True).start()
 
     def auto_start():
         import time
@@ -949,15 +1080,7 @@ def main():
         api.play_id("oC6brLXQe4I")
 
     threading.Thread(target=auto_start, daemon=True).start()
-    
-    try:
-        webview.start()
-    finally:
-        if wave_proc_holder[0]:
-            try:
-                wave_proc_holder[0].terminate()
-            except Exception:
-                pass
+    webview.start()
 
 if __name__ == '__main__':
     main()
