@@ -1137,11 +1137,11 @@ def main():
 
     threading.Thread(target=wallpaper_watcher, args=(api,), daemon=True).start()
 
-    def auto_start():
-        time.sleep(1.2)
-        api.play_id("oC6brLXQe4I")
-
-    threading.Thread(target=auto_start, daemon=True).start()
+    # Auto-start disabled per user request
+    # def auto_start():
+    #     time.sleep(1.2)
+    #     api.play_id("oC6brLXQe4I")
+    # threading.Thread(target=auto_start, daemon=True).start()
     webview.start()
 
 if __name__ == '__main__':
