@@ -1,6 +1,4 @@
 @echo off
-title YouTube Desktop Player
+title YouTube Desktop Widget
 cd /d "%~dp0"
-
-REM Try Python player first (always works)
-python player.py
+start "" pythonw widget.py
