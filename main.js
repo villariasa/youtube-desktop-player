@@ -1,3 +1,5 @@
+'use strict';
+
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 
@@ -5,59 +7,61 @@ let mainWindow;
 let tray;
 let isExpanded = true;
 
-const MINI_SIZE   = { width: 420, height: 110 };
-const FULL_SIZE   = { width: 420, height: 640 };
+const MINI_SIZE = { width: 420, height: 110 };
+const FULL_SIZE = { width: 420, height: 640 };
+
+app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 function createWindow() {
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
 
   mainWindow = new BrowserWindow({
-    width: FULL_SIZE.width,
-    height: FULL_SIZE.height,
-    x: sw - FULL_SIZE.width - 20,
-    y: sh - FULL_SIZE.height - 20,
-    frame: false,
+    width:     FULL_SIZE.width,
+    height:    FULL_SIZE.height,
+    x:         sw - FULL_SIZE.width  - 20,
+    y:         sh - FULL_SIZE.height - 20,
+    frame:     false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable:   false,
     skipTaskbar: false,
-    hasShadow: false,
+    hasShadow:   false,
+    show:        false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload:          path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
-      // Allow YouTube iframes / webviews
-      webSecurity: false,
+      nodeIntegration:  false,
+      webviewTag:       true,
+      webSecurity:      false,
     },
   });
 
   mainWindow.loadFile('index.html');
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
 function createTray() {
-  // Use a simple blank icon fallback if no icon file exists
-  let icon;
-  try {
-    icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
-    if (icon.isEmpty()) throw new Error('empty');
-  } catch {
-    icon = nativeImage.createEmpty();
-  }
-
+  const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
   tray.setToolTip('YouTube Desktop Player');
 
   const ctxMenu = Menu.buildFromTemplate([
-    { label: 'Show Player',  click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-    { label: 'Hide Player',  click: () => mainWindow?.hide() },
+    { label: 'Show Player', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: 'Hide Player', click: () => mainWindow?.hide() },
     { type: 'separator' },
     { label: 'Always on Top', type: 'checkbox', checked: true,
       click: (mi) => mainWindow?.setAlwaysOnTop(mi.checked) },
     { type: 'separator' },
-    { label: 'Quit', click: () => { app.isQuiting = true; app.quit(); } },
+    { label: 'Quit', click: () => app.quit() },
   ]);
 
   tray.setContextMenu(ctxMenu);
@@ -67,7 +71,7 @@ function createTray() {
   });
 }
 
-// IPC handlers
+// ── IPC handlers ────────────────────────────────────────────
 ipcMain.on('toggle-size', () => {
   if (!mainWindow) return;
   isExpanded = !isExpanded;
@@ -77,21 +81,16 @@ ipcMain.on('toggle-size', () => {
   mainWindow.setPosition(sw - size.width - 20, sh - size.height - 20, true);
 });
 
-ipcMain.on('close-app', () => { app.quit(); });
-ipcMain.on('hide-app',  () => mainWindow?.hide());
+ipcMain.on('close-app',        ()      => app.quit());
+ipcMain.on('hide-app',         ()      => mainWindow?.hide());
+ipcMain.on('set-always-on-top', (_e, val) => mainWindow?.setAlwaysOnTop(val));
 
-ipcMain.on('set-always-on-top', (_e, val) => {
-  mainWindow?.setAlwaysOnTop(val);
-});
-
+// ── App lifecycle ────────────────────────────────────────────
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  app.on('activate', () => { if (!mainWindow) createWindow(); });
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-app.on('before-quit', () => { app.isQuiting = true; });

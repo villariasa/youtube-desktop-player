@@ -1,4 +1,6 @@
 @echo off
 title YouTube Desktop Player
 cd /d "%~dp0"
-start "" npx electron .
+
+REM Try Python player first (always works)
+python player.py
