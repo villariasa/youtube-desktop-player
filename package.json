@@ -1,0 +1,16 @@
+{
+  "name": "youtube-desktop-player",
+  "version": "1.0.0",
+  "description": "Floating anime-aesthetic YouTube desktop music player widget",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-packager . youtube-desktop-player --platform=win32 --arch=x64 --out=dist --overwrite"
+  },
+  "keywords": ["youtube", "music", "player", "electron", "desktop", "widget"],
+  "author": "Medy B. Villarias",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}

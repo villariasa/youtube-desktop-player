@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>YouTube Desktop Player</title>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ══════════════ TITLE BAR ══════════════ -->
+<div id="titlebar">
+  <div id="drag-region">
+    <span id="app-title">▶ YT Player</span>
+  </div>
+  <div id="window-controls">
+    <button id="btn-pin"    title="Toggle Always on Top">📌</button>
+    <button id="btn-toggle" title="Expand / Mini mode">⬛</button>
+    <button id="btn-hide"   title="Hide to Tray">－</button>
+    <button id="btn-close"  title="Quit">✕</button>
+  </div>
+</div>
+
+<!-- ══════════════ SEARCH BAR ══════════════ -->
+<div id="search-section">
+  <div id="search-box">
+    <input type="text" id="search-input" placeholder="🔍  Search YouTube…" autocomplete="off"/>
+    <button id="btn-search">GO</button>
+  </div>
+  <div id="quick-tags">
+    <button class="tag" data-q="lo-fi hip hop radio">Lo-Fi</button>
+    <button class="tag" data-q="anime ost playlist">Anime OST</button>
+    <button class="tag" data-q="BABYMONSTER kpop">BABYMONSTER</button>
+    <button class="tag" data-q="naruto ost">Naruto</button>
+    <button class="tag" data-q="jujutsu kaisen ost">JJK</button>
+    <button class="tag" data-q="solo leveling ost">Solo Lvl</button>
+  </div>
+</div>
+
+<!-- ══════════════ YOUTUBE PLAYER ══════════════ -->
+<div id="player-container">
+  <div id="player-wrap">
+    <webview
+      id="yt-webview"
+      src="https://www.youtube.com/embed/?listType=search&list=lo-fi+hip+hop&autoplay=1&controls=1&rel=0"
+      allowpopups
+      webpreferences="autoplayPolicy=no-user-gesture-required"
+    ></webview>
+  </div>
+
+  <!-- MINI PLAYER (shown when collapsed) -->
+  <div id="mini-player">
+    <div id="mini-thumb-wrap">
+      <img id="mini-thumb" src="assets/default-thumb.png" alt="thumb" onerror="this.src=''"/>
+    </div>
+    <div id="mini-info">
+      <div id="mini-title">YouTube Desktop Player</div>
+      <div id="mini-artist">Search something above ↑</div>
+    </div>
+    <div id="mini-controls">
+      <button class="ctrl-btn" id="mini-play">▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ STATUS BAR ══════════════ -->
+<div id="status-bar">
+  <span id="status-text">Ready — search or pick a quick tag above</span>
+  <span id="pin-indicator" title="Always on Top">📌 ON</span>
+</div>
+
+<script src="renderer.js"></script>
+</body>
+</html>
