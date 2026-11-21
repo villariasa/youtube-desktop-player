@@ -5,4 +5,4 @@ $Shortcut.TargetPath = "C:\Github\youtube-desktop-player\launch.bat"
 $Shortcut.WorkingDirectory = "C:\Github\youtube-desktop-player"
 $Shortcut.Description = "YouTube Desktop Music Player Widget"
 $Shortcut.Save()
-Write-Host "Desktop shortcut created!"
+Write-Host "Desktop shortcut updated!"
