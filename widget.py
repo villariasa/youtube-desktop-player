@@ -26,11 +26,28 @@ import websockets
 import numpy as np
 import soundcard as sc
 import warnings
+from pycaw.pycaw import AudioUtilities
 from PIL import Image
 
 warnings.filterwarnings('ignore')
 
 AUDIO_WS_PORT = 8765
+
+def get_system_volume():
+    """Reads the current active Windows device master volume (0.0 to 1.0)."""
+    try:
+        dev = AudioUtilities.GetSpeakers()
+        return round(float(dev.EndpointVolume.GetMasterVolumeLevelScalar()), 2)
+    except Exception:
+        return 0.28
+
+def set_system_volume(vol):
+    """Sets the Windows device master volume to match the widget slider."""
+    try:
+        dev = AudioUtilities.GetSpeakers()
+        dev.EndpointVolume.SetMasterVolumeLevelScalar(max(0.0, min(1.0, float(vol))), None)
+    except Exception:
+        pass
 
 class AudioEngine:
     """
@@ -762,7 +779,7 @@ HTML_TEMPLATE = """
         <!-- Left: Volume Slider -->
         <div class="controls-left">
           <svg class="vol-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-          <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.02" value="0.9">
+          <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.01" value="__DEVICE_VOL__">
         </div>
 
         <!-- Center: Controls -->
@@ -1175,9 +1192,21 @@ HTML_TEMPLATE = """
     searchInput.focus();
   });
 
+  // Two-way device volume sync: widget slider <-> Windows master volume
+  audio.volume = parseFloat(volSlider.value);
+
   volSlider.addEventListener('input', (e) => {
-    audio.volume = parseFloat(e.target.value);
+    const val = parseFloat(e.target.value);
+    audio.volume = val;
+    window.pywebview && window.pywebview.api.set_system_volume(val);
   });
+
+  window.syncDeviceVolume = function(vol) {
+    if (Math.abs(parseFloat(volSlider.value) - vol) > 0.015) {
+      volSlider.value = vol;
+      audio.volume = vol;
+    }
+  };
 
   audio.addEventListener('timeupdate', () => {
     const cur = formatTime(audio.currentTime);
@@ -1381,6 +1410,9 @@ class MusicAPI:
             'no_warnings': True,
         }
 
+    def set_system_volume(self, vol):
+        set_system_volume(vol)
+
     def close_window(self):
         w = self.win_holder[0]
         if w:
@@ -1534,6 +1566,22 @@ def wallpaper_watcher(api):
         time.sleep(0.6)
 
 
+def volume_watcher(api):
+    """Monitors Windows master volume and updates the visualizer slider in real time."""
+    last_vol = -1.0
+    while True:
+        try:
+            cur = get_system_volume()
+            if abs(cur - last_vol) > 0.015:
+                last_vol = cur
+                w = api.win_holder[0]
+                if w:
+                    w.evaluate_js(f"window.syncDeviceVolume({cur});")
+        except Exception:
+            pass
+        time.sleep(0.35)
+
+
 def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
@@ -1542,13 +1590,17 @@ def main():
     audio_engine = AudioEngine(port=AUDIO_WS_PORT)
     audio_engine.start()
 
+    # Query active Windows device master volume to match user's exact system level
+    dev_vol = get_system_volume()
+
     # Load high-quality full resized wallpaper image
     wp_b64 = get_full_wallpaper_b64()
     final_html = (HTML_TEMPLATE
                   .replace('__WALLPAPER_BACKDROP__', wp_b64)
                   .replace('__SCREEN_H__', str(SCREEN_H))
                   .replace('__POS_X__', str(POS_X))
-                  .replace('__POS_Y__', str(POS_Y)))
+                  .replace('__POS_Y__', str(POS_Y))
+                  .replace('__DEVICE_VOL__', str(dev_vol)))
 
     # Desktop-wide visualizer window: on_top=False ensures it NEVER overlaps working apps
     w = webview.create_window(
@@ -1567,6 +1619,7 @@ def main():
     win_holder[0] = w
 
     threading.Thread(target=wallpaper_watcher, args=(api,), daemon=True).start()
+    threading.Thread(target=volume_watcher, args=(api,), daemon=True).start()
 
     webview.start()
 
