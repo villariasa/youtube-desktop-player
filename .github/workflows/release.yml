@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Package Windows Release Archive
+        run: |
+          mkdir -p dist/windows-pkg/assets
+          cp widget.py install_windows.bat install_windows.ps1 launch.bat requirements.txt README.md dist/windows-pkg/
+          cp assets/* dist/windows-pkg/assets/
+          cd dist/windows-pkg
+          zip -r ../Desktop-Music-Visualizer-Windows.zip .
+          cd ../..
+
+      - name: Package Linux Release Archive
+        run: |
+          mkdir -p dist/linux-pkg/assets
+          cp widget.py install_linux.sh requirements.txt README.md dist/linux-pkg/
+          cp assets/* dist/linux-pkg/assets/
+          chmod +x dist/linux-pkg/install_linux.sh
+          cd dist/linux-pkg
+          tar -czvf ../Desktop-Music-Visualizer-Linux.tar.gz .
+          cd ../..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Desktop Music Visualizer ${{ github.ref_name }} (Windows & Linux)
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/Desktop-Music-Visualizer-Windows.zip
+            dist/Desktop-Music-Visualizer-Linux.tar.gz
