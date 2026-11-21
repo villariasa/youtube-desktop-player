@@ -1,11 +1,11 @@
 """
-YouTube Desktop Music Player Widget
-- 100% Transparent Frosted Glassmorphism card (wallpaper shows through)
-- Prominent animated music sound waves
-- Clean user-friendly search with selectable results list
-- ZERO hardcoded presets
-- Desktop level (on_top=False, never overlaps other apps)
-- Centered on desktop
+Immersive Glassmorphism Desktop Music Visualizer
+- Transparent desktop-wide flowing neon ribbon waves (pink, magenta, violet, electric-blue)
+- Audio-reactive visualization responding to real-time music playback
+- Floating glassmorphism music widget styled after the reference image
+- Full controls: Volume, Time/Duration, Prev, Glowing Play/Pause, Next, Shuffle, Repeat, Search
+- Search & selection modal with zero presets
+- Desktop level (on_top=False, never overlaps other applications)
 """
 import webview
 import yt_dlp
@@ -15,16 +15,16 @@ import ctypes
 import os
 import sys
 
-# Screen Metrics for perfect center positioning
+# Screen resolution
 user32 = ctypes.windll.user32
 SCREEN_W = user32.GetSystemMetrics(0)
 SCREEN_H = user32.GetSystemMetrics(1)
 
-WIDGET_W = 460
-WIDGET_H = 150
+WIDGET_W = SCREEN_W
+WIDGET_H = 280
 
-POS_X = (SCREEN_W - WIDGET_W) // 2
-POS_Y = (SCREEN_H - WIDGET_H) // 2
+POS_X = 0
+POS_Y = SCREEN_H - WIDGET_H - 42  # Sits right above the Windows taskbar
 
 HTML_CONTENT = """
 <!DOCTYPE html>
@@ -32,7 +32,7 @@ HTML_CONTENT = """
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouTube Desktop Widget</title>
+<title>Desktop Music Visualizer</title>
 <style>
   * {
     margin: 0;
@@ -44,63 +44,80 @@ HTML_CONTENT = """
   }
 
   html, body {
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     overflow: hidden;
     background: transparent !important;
   }
 
-  /* 100% Frosted Transparent Glass Card */
-  .glass-card {
+  /* Full-width container */
+  .visualizer-stage {
     width: 100%;
     height: 100%;
-    background: rgba(18, 22, 32, 0.42);
-    backdrop-filter: blur(28px) saturate(190%);
-    -webkit-backdrop-filter: blur(28px) saturate(190%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 16px;
-    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.28);
-    display: flex;
-    align-items: center;
-    padding: 14px 18px;
-    gap: 16px;
     position: relative;
-    cursor: grab;
-    transition: background 0.25s ease, border-color 0.25s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
   }
 
-  .glass-card:active {
+  /* DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS */
+  #waves-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* GLASSMORPHISM MUSIC CARD (Exact match to reference image) */
+  .player-card {
+    position: relative;
+    z-index: 10;
+    width: 580px;
+    height: 146px;
+    background: rgba(28, 14, 38, 0.48);
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    border: 1.5px solid rgba(236, 72, 153, 0.42);
+    border-radius: 20px;
+    box-shadow: 
+      0 0 35px rgba(217, 70, 239, 0.28),
+      0 20px 48px rgba(0, 0, 0, 0.65),
+      inset 0 1px 1px rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 16px;
+    cursor: grab;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  }
+
+  .player-card:active {
     cursor: grabbing;
   }
 
-  .glass-card:hover {
-    background: rgba(22, 28, 40, 0.52);
-    border-color: rgba(255, 255, 255, 0.26);
-    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.55), 0 0 20px rgba(56, 189, 248, 0.2);
+  .player-card:hover {
+    background: rgba(36, 18, 48, 0.58);
+    border-color: rgba(244, 114, 182, 0.65);
+    box-shadow: 
+      0 0 45px rgba(217, 70, 239, 0.45),
+      0 24px 54px rgba(0, 0, 0, 0.75),
+      inset 0 1px 2px rgba(255, 255, 255, 0.45);
   }
 
-  /* Glass Top Light Edge */
-  .glass-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 16px;
-    right: 16px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
-    pointer-events: none;
-  }
-
-  /* Album Art */
+  /* Album Artwork */
   .album-wrap {
-    width: 96px;
-    height: 96px;
-    border-radius: 12px;
+    width: 102px;
+    height: 102px;
+    border-radius: 14px;
     overflow: hidden;
     position: relative;
     flex-shrink: 0;
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-    background: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    background: #110e18;
   }
 
   .album-art {
@@ -115,290 +132,269 @@ HTML_CONTENT = """
     transform: scale(1.05);
   }
 
-  /* Info & Controls Column */
-  .info-controls {
+  /* Right Info & Controls Section */
+  .card-main {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 2px;
+    justify-content: space-between;
+    height: 100%;
+    padding: 2px 0;
   }
 
-  .track-info {
+  /* Top Info Row */
+  .track-meta {
     display: flex;
     flex-direction: column;
   }
 
   .track-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     letter-spacing: -0.2px;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   }
 
-  .track-artist {
-    font-size: 12px;
+  .track-source {
+    font-size: 11px;
     font-weight: 400;
     color: #cbd5e1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-top: 1px;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    margin-top: 2px;
+    opacity: 0.85;
   }
 
-  /* PROMINENT AUDIO SOUND WAVES */
-  .waves-visualizer {
+  /* SPECTRUM EQUALIZER BARS (Inside card, pink/magenta gradient) */
+  .spectrum-bar-wrap {
     display: flex;
     align-items: center;
     gap: 3px;
-    height: 20px;
-    margin: 5px 0 3px 0;
+    height: 24px;
+    margin: 4px 0;
   }
 
-  .wave-bar {
-    width: 3.5px;
+  .spec-bar {
+    flex: 1;
     height: 4px;
-    background: #38bdf8;
-    border-radius: 3px;
-    transition: height 0.15s ease, background-color 0.2s ease;
-    box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
-  }
-
-  /* Animated waves dancing to music */
-  .playing .wave-bar {
-    animation: soundWave 0.9s ease-in-out infinite alternate;
-  }
-
-  .playing .wave-bar:nth-child(1)  { animation-duration: 0.60s; animation-delay: 0.10s; }
-  .playing .wave-bar:nth-child(2)  { animation-duration: 0.80s; animation-delay: 0.25s; }
-  .playing .wave-bar:nth-child(3)  { animation-duration: 0.50s; animation-delay: 0.05s; }
-  .playing .wave-bar:nth-child(4)  { animation-duration: 0.95s; animation-delay: 0.20s; }
-  .playing .wave-bar:nth-child(5)  { animation-duration: 0.65s; animation-delay: 0.40s; }
-  .playing .wave-bar:nth-child(6)  { animation-duration: 0.85s; animation-delay: 0.15s; }
-  .playing .wave-bar:nth-child(7)  { animation-duration: 0.55s; animation-delay: 0.30s; }
-  .playing .wave-bar:nth-child(8)  { animation-duration: 0.90s; animation-delay: 0.10s; }
-  .playing .wave-bar:nth-child(9)  { animation-duration: 0.70s; animation-delay: 0.35s; }
-  .playing .wave-bar:nth-child(10) { animation-duration: 0.60s; animation-delay: 0.05s; }
-  .playing .wave-bar:nth-child(11) { animation-duration: 0.85s; animation-delay: 0.20s; }
-  .playing .wave-bar:nth-child(12) { animation-duration: 0.50s; animation-delay: 0.30s; }
-  .playing .wave-bar:nth-child(13) { animation-duration: 0.75s; animation-delay: 0.15s; }
-  .playing .wave-bar:nth-child(14) { animation-duration: 0.95s; animation-delay: 0.25s; }
-
-  @keyframes soundWave {
-    0%   { height: 4px;  background: #38bdf8; }
-    50%  { height: 19px; background: #67e8f9; }
-    100% { height: 7px;  background: #0284c7; }
-  }
-
-  /* Progress Bar */
-  .progress-wrap {
-    width: 100%;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.16);
     border-radius: 2px;
+    background: linear-gradient(180deg, #ec4899 0%, #a855f7 100%);
+    box-shadow: 0 0 6px rgba(236, 72, 153, 0.6);
+    transition: height 0.08s ease;
+  }
+
+  /* BOTTOM CONTROLS BAR (Matches reference layout) */
+  .controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  /* Left: Volume & Time */
+  .controls-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .vol-btn {
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
     cursor: pointer;
-    position: relative;
-    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    transition: color 0.15s ease;
   }
 
-  .progress-bar {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #38bdf8, #67e8f9);
+  .vol-btn svg { width: 15px; height: 15px; fill: currentColor; }
+  .vol-btn:hover { color: #f472b6; }
+
+  .vol-slider {
+    width: 55px;
+    height: 3px;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.22);
     border-radius: 2px;
-    box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
-    transition: width 0.1s linear;
+    outline: none;
+    cursor: pointer;
   }
 
-  /* Controls Row */
-  .controls-row {
+  .vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #ec4899;
+    box-shadow: 0 0 6px rgba(236, 72, 153, 0.8);
+    cursor: pointer;
+  }
+
+  /* Center: Playback Buttons */
+  .controls-center {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  /* Tailwind Icon Buttons */
-  .btn-icon {
+  .ctrl-btn {
     background: transparent;
     border: none;
-    color: #cbd5e1;
+    color: #e2e8f0;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 6px;
-    border-radius: 8px;
-    transition: color 0.15s ease, transform 0.1s ease, background 0.15s ease;
+    padding: 4px;
+    border-radius: 50%;
+    transition: color 0.15s ease, transform 0.1s ease;
   }
 
-  .btn-icon:hover {
+  .ctrl-btn svg { width: 17px; height: 17px; fill: currentColor; }
+  .ctrl-btn:hover { color: #f472b6; transform: scale(1.14); }
+  .ctrl-btn:active { transform: scale(0.92); }
+
+  /* Circular Glowing Play/Pause */
+  .play-pause-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(236, 72, 153, 0.25);
+    border: 1.5px solid rgba(244, 114, 182, 0.6);
+    box-shadow: 0 0 16px rgba(236, 72, 153, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
     color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+
+  .play-pause-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .play-pause-btn:hover {
     transform: scale(1.1);
+    background: rgba(236, 72, 153, 0.4);
+    box-shadow: 0 0 24px rgba(236, 72, 153, 0.75);
   }
 
-  .btn-icon:active {
-    transform: scale(0.92);
-  }
+  .play-pause-btn:active { transform: scale(0.94); }
 
-  .btn-icon svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-    display: block;
-  }
-
-  /* Cyan Play/Pause Button */
-  .btn-play-pause {
-    width: 38px;
-    height: 38px;
-    background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
-    border-radius: 10px;
-    border: none;
+  /* Right: Time, Shuffle, Repeat, Search */
+  .controls-right {
     display: flex;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    gap: 8px;
   }
 
-  .btn-play-pause:hover {
-    transform: scale(1.08);
-    box-shadow: 0 6px 18px rgba(6, 182, 212, 0.7);
-    filter: brightness(1.1);
-  }
-
-  .btn-play-pause:active {
-    transform: scale(0.94);
-  }
-
-  .btn-play-pause svg {
-    width: 18px;
-    height: 18px;
-    fill: #09131f;
-    display: block;
-  }
-
-  /* YouTube Music Badge */
-  .yt-badge {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .time-display {
     font-size: 11px;
     color: #cbd5e1;
-    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    margin-right: 4px;
   }
 
-  .yt-badge svg {
-    width: 14px;
-    height: 14px;
-    display: block;
+  .mini-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px;
+    transition: color 0.15s ease;
   }
 
-  /* Top Right Action Icons */
-  .top-actions {
+  .mini-btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .mini-btn:hover, .mini-btn.active { color: #f472b6; }
+
+  /* Top Right Action (Close & Search) */
+  .card-top-actions {
     position: absolute;
     top: 8px;
     right: 12px;
     display: flex;
     gap: 4px;
-    z-index: 10;
+    z-index: 20;
   }
 
-  .action-btn {
+  .top-btn {
     background: transparent;
     border: none;
     color: #94a3b8;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: color 0.15s, background 0.15s;
   }
 
-  .action-btn svg {
-    width: 15px;
-    height: 15px;
-    fill: currentColor;
-    display: block;
-  }
+  .top-btn svg { width: 13px; height: 13px; fill: currentColor; }
+  .top-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .top-btn.close-btn:hover { background: rgba(239, 68, 68, 0.4); color: #ef4444; }
 
-  .action-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-  }
-
-  .action-btn.btn-close:hover {
-    background: rgba(239, 68, 68, 0.4);
-    color: #ef4444;
-  }
-
-  /* USER-FRIENDLY SEARCH MODAL OVERLAY (NO PRESETS) */
-  .search-overlay {
+  /* SEARCH MODAL OVERLAY (Clean user search with results list) */
+  .search-modal {
     position: absolute;
-    inset: 8px;
-    background: rgba(16, 20, 28, 0.92);
+    inset: 10px;
+    background: rgba(20, 10, 30, 0.94);
     backdrop-filter: blur(36px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    padding: 10px;
+    border: 1px solid rgba(236, 72, 153, 0.45);
+    border-radius: 16px;
+    padding: 12px;
     display: none;
     flex-direction: column;
     gap: 8px;
     z-index: 30;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(217, 70, 239, 0.35);
   }
 
-  .search-overlay.open {
-    display: flex;
-  }
+  .search-modal.open { display: flex; }
 
-  .search-header {
+  .search-bar {
     display: flex;
-    gap: 6px;
-    align-items: center;
+    gap: 8px;
   }
 
   .search-input {
     flex: 1;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
     color: #fff;
-    padding: 7px 10px;
+    padding: 7px 12px;
     font-size: 12px;
     outline: none;
   }
 
   .search-input:focus {
-    border-color: #38bdf8;
-    background: rgba(255, 255, 255, 0.15);
+    border-color: #ec4899;
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
   }
 
-  .search-go-btn {
-    background: linear-gradient(135deg, #38bdf8, #06b6d4);
+  .search-submit-btn {
+    background: linear-gradient(135deg, #ec4899, #a855f7);
     border: none;
-    border-radius: 8px;
-    color: #09131f;
+    border-radius: 10px;
+    color: #fff;
+    padding: 7px 14px;
     font-size: 11px;
     font-weight: 700;
-    padding: 7px 12px;
     cursor: pointer;
   }
 
-  /* SELECTABLE RESULTS LIST */
-  .results-list {
+  .search-results-list {
     flex: 1;
     overflow-y: auto;
     display: flex;
@@ -407,163 +403,134 @@ HTML_CONTENT = """
     max-height: 85px;
   }
 
-  .results-list::-webkit-scrollbar { width: 4px; }
-  .results-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+  .search-results-list::-webkit-scrollbar { width: 4px; }
+  .search-results-list::-webkit-scrollbar-thumb { background: rgba(236, 72, 153, 0.4); border-radius: 4px; }
 
-  .song-item {
+  .result-item {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 5px 8px;
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid transparent;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.15s ease;
   }
 
-  .song-item:hover {
-    background: rgba(56, 189, 248, 0.15);
-    border-color: rgba(56, 189, 248, 0.4);
+  .result-item:hover {
+    background: rgba(236, 72, 153, 0.22);
   }
 
-  .song-thumb {
+  .result-thumb {
     width: 28px;
     height: 28px;
     border-radius: 4px;
     object-fit: cover;
-    flex-shrink: 0;
   }
 
-  .song-details {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .song-item-title {
+  .result-title {
     font-size: 11px;
     font-weight: 600;
-    color: #ffffff;
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .song-item-artist {
+  .result-artist {
     font-size: 9px;
-    color: #94a3b8;
+    color: #cbd5e1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  /* Loading Spinner */
-  .loading-ring {
-    display: none;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(9, 19, 31, 0.25);
-    border-top: 2px solid #09131f;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .loading .loading-ring { display: block; }
-  .loading .play-icon { display: none; }
-  .loading .pause-icon { display: none; }
 </style>
 </head>
 <body>
 
-<div class="glass-card" id="card">
-  <!-- Top Right Actions -->
-  <div class="top-actions">
-    <!-- Tailwind Search (Magnifying Glass) Icon -->
-    <button class="action-btn" id="btn-search-toggle" title="Search Song">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
-    </button>
-    <!-- Tailwind Close (X Mark) Icon -->
-    <button class="action-btn btn-close" id="btn-close" title="Close Widget">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
-    </button>
-  </div>
+<div class="visualizer-stage">
+  <!-- 1. FULL DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS -->
+  <canvas id="waves-canvas"></canvas>
 
-  <!-- Album Art -->
-  <div class="album-wrap" id="album-wrap">
-    <img id="album-art" class="album-art" src="https://i.ytimg.com/vi/dX3k_QDnzHE/hqdefault.jpg" alt="Cover">
-  </div>
-
-  <!-- Info & Controls -->
-  <div class="info-controls">
-    <div class="track-info">
-      <div class="track-title" id="track-title">Midnight City</div>
-      <div class="track-artist" id="track-artist">M83</div>
-    </div>
-
-    <!-- PROMINENT AUDIO SOUND WAVES -->
-    <div class="waves-visualizer" id="waveform">
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-      <div class="wave-bar"></div>
-    </div>
-
-    <!-- Progress Bar -->
-    <div class="progress-wrap" id="progress-wrap">
-      <div class="progress-bar" id="progress-bar"></div>
-    </div>
-
-    <!-- Controls Row with Tailwind Icons -->
-    <div class="controls-row">
-      <!-- Previous Track (Tailwind Backward Icon) -->
-      <button class="btn-icon" id="btn-prev" title="Previous Track">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.195 18.44c1.25.714 2.805-.189 2.805-1.629v-2.34l6.945 3.968c1.25.715 2.805-.188 2.805-1.628V7.189c0-1.44-1.555-2.343-2.805-1.628L12 9.529v-2.34c0-1.44-1.555-2.343-2.805-1.628l-7.108 4.061c-1.26.72-1.26 2.536 0 3.256l7.108 4.061Z" /></svg>
+  <!-- 2. GLASSMORPHISM MUSIC PLAYER WIDGET -->
+  <div class="player-card" id="card">
+    <!-- Top Right Actions -->
+    <div class="card-top-actions">
+      <button class="top-btn" id="btn-search-toggle" title="Search Any Song">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.298 11.968l4.492 4.493a.75.75 0 1 0 1.06-1.06l-4.493-4.493A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd" /></svg>
       </button>
-
-      <!-- Play / Pause Cyan Button (Tailwind Play/Pause Icons) -->
-      <button class="btn-play-pause" id="btn-play-pause" title="Play / Pause">
-        <div class="loading-ring"></div>
-        <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" /></svg>
-        <svg class="pause-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0v-12a.75.75 0 0 1 .75-.75Zm9 0a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0v-12a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" /></svg>
-      </button>
-
-      <!-- Next Track (Tailwind Forward Icon) -->
-      <button class="btn-icon" id="btn-next" title="Next Track">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.622c0 1.44 1.555 2.343 2.805 1.628L12 14.971v2.341c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256L14.805 7.562V5.22c0-1.44-1.555-2.343-2.805-1.628L5.055 7.06Z" /></svg>
-      </button>
-
-      <!-- YouTube Music Badge with SVG Logo -->
-      <div class="yt-badge">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ef4444"/><polygon points="10 8 16 12 10 16" fill="#ffffff"/></svg>
-        <span>YouTube Music</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- USER-FRIENDLY SEARCH DRAWER (NO PRESETS, PURE USER SEARCH) -->
-  <div class="search-overlay" id="search-overlay">
-    <div class="search-header">
-      <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
-      <button class="search-go-btn" id="search-go-btn">SEARCH</button>
-      <button class="action-btn" id="search-close-btn" title="Close Search">
+      <button class="top-btn close-btn" id="btn-close" title="Close">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
       </button>
     </div>
-    <!-- SELECTABLE RESULTS LIST -->
-    <div class="results-list" id="results-list">
-      <div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Type a song above and press Search</div>
+
+    <!-- Album Art -->
+    <div class="album-wrap">
+      <img id="album-art" class="album-art" src="https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg" alt="Cover">
+    </div>
+
+    <!-- Card Main Info & Controls -->
+    <div class="card-main">
+      <!-- Title & Source -->
+      <div class="track-meta">
+        <div class="track-title" id="track-title">BABYMONSTER - 'DESERVE' M/V</div>
+        <div class="track-source" id="track-source">YouTube</div>
+      </div>
+
+      <!-- Real-Time Audio Spectrum Bars -->
+      <div class="spectrum-bar-wrap" id="spectrum-bars">
+        <!-- 32 spectrum bars dynamically generated -->
+      </div>
+
+      <!-- Controls Row -->
+      <div class="controls-bar">
+        <!-- Left: Volume -->
+        <div class="controls-left">
+          <button class="vol-btn" id="btn-mute" title="Mute/Unmute">
+            <svg viewBox="0 0 24 24"><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-2.5 9L7 8H3v8h4.5l4.5 4.23V3.77z"/></svg>
+          </button>
+          <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.02" value="0.85">
+        </div>
+
+        <!-- Center: Playback Buttons -->
+        <div class="controls-center">
+          <button class="ctrl-btn" id="btn-prev" title="Previous Track">
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button class="play-pause-btn" id="btn-play-pause" title="Play / Pause">
+            <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg class="pause-icon" style="display:none;" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button class="ctrl-btn" id="btn-next" title="Next Track">
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Right: Time, Shuffle, Repeat, Search -->
+        <div class="controls-right">
+          <span class="time-display" id="time-display">0:00 / 0:00</span>
+          <button class="mini-btn" id="btn-shuffle" title="Shuffle">
+            <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+          </button>
+          <button class="mini-btn" id="btn-repeat" title="Repeat">
+            <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH & SELECTION MODAL OVERLAY -->
+    <div class="search-modal" id="search-modal">
+      <div class="search-bar">
+        <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
+        <button class="search-submit-btn" id="search-submit-btn">FIND</button>
+        <button class="top-btn" id="btn-search-close">
+          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+        </button>
+      </div>
+      <div class="search-results-list" id="search-results-list">
+        <div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Type any song above and hit Find</div>
+      </div>
     </div>
   </div>
 </div>
@@ -573,44 +540,191 @@ HTML_CONTENT = """
 <script>
   const audio = document.getElementById('audio-player');
   const card = document.getElementById('card');
+  const albumArt = document.getElementById('album-art');
+  const trackTitle = document.getElementById('track-title');
+  const trackSource = document.getElementById('track-source');
+  const timeDisplay = document.getElementById('time-display');
   const btnPlayPause = document.getElementById('btn-play-pause');
   const playIcon = btnPlayPause.querySelector('.play-icon');
   const pauseIcon = btnPlayPause.querySelector('.pause-icon');
   const btnPrev = document.getElementById('btn-prev');
   const btnNext = document.getElementById('btn-next');
   const btnClose = document.getElementById('btn-close');
-  const albumArt = document.getElementById('album-art');
-  const trackTitle = document.getElementById('track-title');
-  const trackArtist = document.getElementById('track-artist');
-  const progressBar = document.getElementById('progress-bar');
-  const progressWrap = document.getElementById('progress-wrap');
-  const waveform = document.getElementById('waveform');
+  const volSlider = document.getElementById('vol-slider');
+  const btnMute = document.getElementById('btn-mute');
+  const btnShuffle = document.getElementById('btn-shuffle');
+  const btnRepeat = document.getElementById('btn-repeat');
+  const searchModal = document.getElementById('search-modal');
   const btnSearchToggle = document.getElementById('btn-search-toggle');
-  const searchOverlay = document.getElementById('search-overlay');
+  const btnSearchClose = document.getElementById('btn-search-close');
   const searchInput = document.getElementById('search-input');
-  const searchGoBtn = document.getElementById('search-go-btn');
-  const searchCloseBtn = document.getElementById('search-close-btn');
-  const resultsList = document.getElementById('results-list');
+  const searchSubmitBtn = document.getElementById('search-submit-btn');
+  const searchResultsList = document.getElementById('search-results-list');
+  const spectrumContainer = document.getElementById('spectrum-bars');
 
   let isPlaying = false;
-  let currentSongId = 'dX3k_QDnzHE';
+  let isMuted = false;
+  let isRepeat = false;
+  let isShuffle = false;
+  let currentSongId = 'oC6brLXQe4I';
 
-  // Toggle Wave animation & play/pause icon
+  // 1. Generate 32 spectrum bars inside card
+  const NUM_BARS = 32;
+  const specBars = [];
+  for (let i = 0; i < NUM_BARS; i++) {
+    const b = document.createElement('div');
+    b.className = 'spec-bar';
+    spectrumContainer.appendChild(b);
+    specBars.push(b);
+  }
+
+  // 2. WEB AUDIO API ANALYZER SETUP
+  let audioCtx, analyser, dataArray;
+  function initAudioContext() {
+    if (audioCtx) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.82;
+      const src = audioCtx.createMediaElementSource(audio);
+      src.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+    } catch(e) {
+      console.log("AudioContext fallback: " + e);
+    }
+  }
+
+  // 3. DESKTOP-WIDE FLOWING NEON RIBBON WAVES CANVAS
+  const canvas = document.getElementById('waves-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  let waveOffset = 0;
+  let currentEnergy = 0.2;
+
+  // Wave render loop
+  function drawWaves() {
+    requestAnimationFrame(drawWaves);
+
+    // Audio frequency analysis
+    let bass = 0, mid = 0, treble = 0;
+    if (analyser && dataArray && isPlaying) {
+      analyser.getByteFrequencyData(dataArray);
+      for (let i = 0; i < 4; i++) bass += dataArray[i];
+      bass = (bass / 4) / 255;
+      for (let i = 4; i < 16; i++) mid += dataArray[i];
+      mid = (mid / 12) / 255;
+      for (let i = 16; i < 32; i++) treble += dataArray[i];
+      treble = (treble / 16) / 255;
+    } else if (isPlaying) {
+      // Harmonic fallback synced to music progress
+      const t = audio.currentTime || Date.now() * 0.001;
+      bass = 0.4 + 0.3 * Math.sin(t * 4.2);
+      mid = 0.35 + 0.25 * Math.cos(t * 3.1);
+      treble = 0.3 + 0.2 * Math.sin(t * 5.5);
+    } else {
+      bass *= 0.95;
+      mid *= 0.95;
+      treble *= 0.95;
+    }
+
+    const targetEnergy = isPlaying ? (bass * 0.6 + mid * 0.3 + treble * 0.1) : 0.08;
+    currentEnergy += (targetEnergy - currentEnergy) * 0.12;
+
+    // Update inside-card spectrum bars
+    for (let i = 0; i < NUM_BARS; i++) {
+      let val = 0;
+      if (dataArray && isPlaying) {
+        val = (dataArray[i % dataArray.length] / 255);
+      } else if (isPlaying) {
+        val = 0.25 + 0.65 * Math.abs(Math.sin(waveOffset * 2.5 + i * 0.3));
+      } else {
+        val = 0.08;
+      }
+      const h = Math.max(3, Math.min(24, val * 24));
+      specBars[i].style.height = h + 'px';
+    }
+
+    // Clear Canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Speed of flowing ribbon
+    waveOffset += isPlaying ? (0.015 + currentEnergy * 0.035) : 0.005;
+
+    // Draw Multi-Layered Flowing Neon Ribbons
+    const centerY = canvas.height * 0.52;
+    const W = canvas.width;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    // Layer 1: Electric Blue / Cyan Deep Ribbon
+    drawNeonRibbon(ctx, W, centerY, waveOffset * 0.8, 48 * currentEnergy, 0.0022, 'rgba(56, 189, 248, 0.45)', 20);
+
+    // Layer 2: Violet / Purple Ambient Flow
+    drawNeonRibbon(ctx, W, centerY + 8, waveOffset * 1.1 + 1.2, 58 * currentEnergy, 0.0028, 'rgba(168, 85, 247, 0.55)', 26);
+
+    // Layer 3: Main Glowing Magenta / Pink Core Wave
+    drawNeonRibbon(ctx, W, centerY - 6, waveOffset * 1.4 + 2.4, 72 * currentEnergy, 0.0034, 'rgba(236, 72, 153, 0.75)', 32);
+
+    // Layer 4: Bright Highlight Filament
+    drawNeonRibbon(ctx, W, centerY - 2, waveOffset * 1.6 + 3.6, 62 * currentEnergy, 0.0040, 'rgba(244, 114, 182, 0.90)', 14);
+
+    ctx.restore();
+  }
+
+  function drawNeonRibbon(context, width, baseY, offset, amplitude, freq, color, blur) {
+    context.save();
+    context.beginPath();
+    context.shadowColor = color;
+    context.shadowBlur = blur;
+    context.strokeStyle = color;
+    context.lineWidth = 3.5;
+
+    const step = 8;
+    for (let x = 0; x <= width; x += step) {
+      // Gaussian envelope so waves flourish near center widget and taper gracefully at edges
+      const normX = (x / width) * 2 - 1; // -1 to 1
+      const envelope = Math.exp(-Math.pow(normX * 1.3, 2));
+      const amp = (amplitude + 10) * (0.45 + envelope * 0.95);
+
+      const y = baseY + 
+        Math.sin(x * freq + offset) * amp + 
+        Math.cos(x * freq * 1.7 - offset * 0.8) * (amp * 0.35);
+
+      if (x === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    }
+    context.stroke();
+    context.restore();
+  }
+
+  requestAnimationFrame(drawWaves);
+
+  // 4. CONTROLS LOGIC
   function updatePlayState(playing) {
     isPlaying = playing;
     if (playing) {
       playIcon.style.display = 'none';
       pauseIcon.style.display = 'block';
-      waveform.classList.add('playing');
+      initAudioContext();
     } else {
       playIcon.style.display = 'block';
       pauseIcon.style.display = 'none';
-      waveform.classList.remove('playing');
     }
   }
 
   btnPlayPause.addEventListener('click', (e) => {
     e.stopPropagation();
+    initAudioContext();
     if (audio.src) {
       if (audio.paused) {
         audio.play().then(() => updatePlayState(true)).catch(() => {});
@@ -619,31 +733,56 @@ HTML_CONTENT = """
         updatePlayState(false);
       }
     } else {
-      playSong(currentSongId, trackTitle.textContent, trackArtist.textContent, albumArt.src);
+      window.pywebview && window.pywebview.api.play_id(currentSongId);
     }
   });
 
   audio.addEventListener('play', () => updatePlayState(true));
   audio.addEventListener('pause', () => updatePlayState(false));
   audio.addEventListener('ended', () => {
-    window.pywebview && window.pywebview.api.next_track();
+    if (isRepeat) {
+      audio.currentTime = 0;
+      audio.play();
+    } else {
+      window.pywebview && window.pywebview.api.next_track();
+    }
   });
+
+  function formatTime(s) {
+    if (!s || isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
 
   audio.addEventListener('timeupdate', () => {
-    if (audio.duration) {
-      const pct = (audio.currentTime / audio.duration) * 100;
-      progressBar.style.width = pct + '%';
-    }
+    timeDisplay.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
   });
 
-  progressWrap.addEventListener('click', (e) => {
+  // Volume
+  volSlider.addEventListener('input', (e) => {
+    audio.volume = parseFloat(e.target.value);
+    audio.muted = false;
+    isMuted = false;
+  });
+
+  btnMute.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (audio.duration) {
-      const rect = progressWrap.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const pct = clickX / rect.width;
-      audio.currentTime = pct * audio.duration;
-    }
+    isMuted = !isMuted;
+    audio.muted = isMuted;
+    btnMute.style.color = isMuted ? '#ef4444' : '#cbd5e1';
+  });
+
+  btnShuffle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isShuffle = !isShuffle;
+    btnShuffle.classList.toggle('active', isShuffle);
+  });
+
+  btnRepeat.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isRepeat = !isRepeat;
+    btnRepeat.classList.toggle('active', isRepeat);
   });
 
   btnNext.addEventListener('click', (e) => {
@@ -664,86 +803,72 @@ HTML_CONTENT = """
   // Search Toggle
   btnSearchToggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    searchOverlay.classList.toggle('open');
-    if (searchOverlay.classList.contains('open')) {
-      searchInput.focus();
-    }
+    searchModal.classList.toggle('open');
+    if (searchModal.classList.contains('open')) searchInput.focus();
   });
 
-  searchCloseBtn.addEventListener('click', (e) => {
+  btnSearchClose.addEventListener('click', (e) => {
     e.stopPropagation();
-    searchOverlay.classList.remove('open');
+    searchModal.classList.remove('open');
   });
 
-  searchGoBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  function triggerSearch() {
     const q = searchInput.value.trim();
-    if (q) doSearch(q);
-  });
-
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const q = searchInput.value.trim();
-      if (q) doSearch(q);
+    if (q) {
+      searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Searching YouTube...</div>';
+      window.pywebview && window.pywebview.api.search_songs(q);
     }
-  });
-
-  function doSearch(q) {
-    resultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">Searching YouTube...</div>';
-    window.pywebview && window.pywebview.api.search_songs(q);
   }
 
-  // Called from Python when search results arrive
-  window.renderSearchResults = function(resultsJson) {
-    const results = JSON.parse(resultsJson);
-    resultsList.innerHTML = '';
-    if (!results || results.length === 0) {
-      resultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">No results found.</div>';
+  searchSubmitBtn.addEventListener('click', (e) => { e.stopPropagation(); triggerSearch(); });
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') triggerSearch(); });
+
+  window.renderSearchResults = function(jsonStr) {
+    const list = JSON.parse(jsonStr);
+    searchResultsList.innerHTML = '';
+    if (!list || list.length === 0) {
+      searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:12px;text-align:center;">No songs found.</div>';
       return;
     }
-
-    results.forEach(item => {
+    list.forEach(item => {
       const row = document.createElement('div');
-      row.className = 'song-item';
+      row.className = 'result-item';
       row.innerHTML = `
-        <img class="song-thumb" src="${item.thumb}" alt="thumb">
-        <div class="song-details">
-          <div class="song-item-title">${item.title}</div>
-          <div class="song-item-artist">${item.artist}</div>
+        <img class="result-thumb" src="${item.thumb}" alt="thumb">
+        <div style="flex:1;min-width:0;">
+          <div class="result-title">${item.title}</div>
+          <div class="result-artist">${item.artist}</div>
         </div>
       `;
       row.addEventListener('click', () => {
-        searchOverlay.classList.remove('open');
-        playSong(item.id, item.title, item.artist, item.thumb);
+        searchModal.classList.remove('open');
+        playSelectedSong(item.id, item.title, item.artist, item.thumb);
       });
-      resultsList.appendChild(row);
+      searchResultsList.appendChild(row);
     });
   };
 
-  function playSong(id, title, artist, thumb) {
+  function playSelectedSong(id, title, artist, thumb) {
     currentSongId = id;
-    btnPlayPause.classList.add('loading');
     trackTitle.textContent = title;
-    trackArtist.textContent = artist;
+    trackSource.textContent = artist || 'YouTube';
     if (thumb) albumArt.src = thumb;
-    window.pywebview && window.pywebview.api.play_selected_song(id, title, artist, thumb);
+    window.pywebview && window.pywebview.api.play_id(id);
   }
 
-  // Called from Python when direct stream is ready
   window.setStreamUrl = function(streamUrl) {
-    btnPlayPause.classList.remove('loading');
     if (streamUrl) {
       audio.src = streamUrl;
-      audio.play().then(() => updatePlayState(true)).catch(err => console.log(err));
+      audio.play().then(() => updatePlayState(true)).catch(e => console.log(e));
     }
   };
 
-  // Dragging support
+  // Card dragging support
   let isDragging = false;
   let startX = 0, startY = 0;
 
   card.addEventListener('mousedown', (e) => {
-    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.results-list')) return;
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.search-modal')) return;
     isDragging = true;
     startX = e.screenX;
     startY = e.screenY;
@@ -758,9 +883,7 @@ HTML_CONTENT = """
     window.pywebview && window.pywebview.api.move_window(dx, dy);
   });
 
-  document.addEventListener('mouseup', () => {
-    isDragging = false;
-  });
+  document.addEventListener('mouseup', () => { isDragging = false; });
 </script>
 </body>
 </html>
@@ -769,7 +892,10 @@ HTML_CONTENT = """
 class MusicAPI:
     def __init__(self, win_holder):
         self.win_holder = win_holder
-        self.history = []
+        self.history = [
+            {"id": "oC6brLXQe4I", "title": "BABYMONSTER - 'DESERVE' M/V", "artist": "YouTube", "thumb": "https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg"},
+            {"id": "dX3k_QDnzHE", "title": "Midnight City", "artist": "M83", "thumb": "https://i.ytimg.com/vi/dX3k_QDnzHE/hqdefault.jpg"}
+        ]
         self.history_index = 0
         self.ydl_opts_search = {
             'format': 'bestaudio/best',
@@ -821,11 +947,7 @@ class MusicAPI:
         js = f"window.renderSearchResults({json.dumps(json.dumps(results))});"
         w.evaluate_js(js)
 
-    def play_selected_song(self, vid_id, title, artist, thumb):
-        song = {"id": vid_id, "title": title, "artist": artist, "thumb": thumb}
-        if not self.history or self.history[-1].get('id') != vid_id:
-            self.history.append(song)
-            self.history_index = len(self.history) - 1
+    def play_id(self, vid_id):
         threading.Thread(target=self._resolve_and_play, args=(vid_id,), daemon=True).start()
 
     def _resolve_and_play(self, vid_id):
@@ -845,23 +967,24 @@ class MusicAPI:
         if self.history and self.history_index < len(self.history) - 1:
             self.history_index += 1
             s = self.history[self.history_index]
-            self.play_selected_song(s['id'], s['title'], s['artist'], s['thumb'])
+            self.play_id(s['id'])
 
     def prev_track(self):
         if self.history and self.history_index > 0:
             self.history_index -= 1
             s = self.history[self.history_index]
-            self.play_selected_song(s['id'], s['title'], s['artist'], s['thumb'])
+            self.play_id(s['id'])
 
 
 def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
 
-    # 100% transparent frameless window - only the frosted glass card is visible
+    # Full screen width transparent window
+    # Waves flow across entire desktop width, widget floats centered in the waves
     # on_top=False ensures it NEVER overlaps other apps!
     w = webview.create_window(
-        title='YouTube Desktop Widget',
+        title='Desktop Music Visualizer',
         html=HTML_CONTENT,
         width=WIDGET_W,
         height=WIDGET_H,
@@ -869,17 +992,16 @@ def main():
         y=POS_Y,
         frameless=True,
         resizable=False,
-        transparent=True,  # <--- TRANSPARENT FROSTED GLASS!
-        on_top=False,      # <--- WILL NOT OVERLAP APPS!
+        transparent=True,
+        on_top=False,
         js_api=api
     )
     win_holder[0] = w
 
-    # Start initial track (Midnight City)
     def auto_start():
         import time
         time.sleep(1.2)
-        api.play_selected_song("dX3k_QDnzHE", "Midnight City", "M83", "https://i.ytimg.com/vi/dX3k_QDnzHE/hqdefault.jpg")
+        api.play_id("oC6brLXQe4I")
 
     threading.Thread(target=auto_start, daemon=True).start()
     webview.start()
