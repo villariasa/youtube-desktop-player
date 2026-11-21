@@ -3,9 +3,11 @@ Immersive Glassmorphism Desktop Music Visualizer
 - Desktop-wide audio-reactive flowing ribbon waves in cyan, teal, and white
 - Atmospheric spectrum equalizer bars on left and right sides of desktop
 - Centered ultra-transparent glassmorphism player card
-- Live dynamic wallpaper watcher: automatically adapts and blends into whatever wallpaper is active (even when switching Next Desktop Background)
-- Direct streaming unmuted HTML5 audio via yt-dlp
-- Full controls: Volume, Seek/Time, Prev, Glowing Circular Pause, Next, Shuffle, Repeat, Search
+- Dynamically see-through wallpaper: moves with widget and re-crops at new position
+- Live dynamic wallpaper watcher: automatically adapts when switching wallpapers (Next Desktop Background)
+- Direct streaming unmuted HTML5 audio via yt-dlp on play button click (zero auto-play during test)
+- Interactive dragging: drag anywhere on card to reposition, dynamically updating backdrop
+- Full controls: Click-to-seek, Volume slider, Prev/Next, Glowing Circular Play/Pause, Shuffle, Repeat, Search
 - Desktop level (on_top=False, never overlaps other applications)
 """
 import webview
@@ -33,14 +35,19 @@ POS_X = 0
 POS_Y = SCREEN_H - VIS_H - TASKBAR_H
 
 def get_wallpaper_slice_b64(x=POS_X, y=POS_Y, w=VIS_W, h=VIS_H):
-    """Crops and returns base64 JPEG of the desktop wallpaper for seamless blending."""
+    """Crops and returns base64 JPEG of the desktop wallpaper for seamless blending at specific coordinates."""
     try:
         wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
         if not os.path.exists(wp_path):
             return ""
         img = Image.open(wp_path).convert("RGB")
         img_screen = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
-        crop = img_screen.crop((x, y, x + w, y + h))
+        # Clamp bounds
+        cx = max(0, min(SCREEN_W - 10, int(x)))
+        cy = max(0, min(SCREEN_H - 10, int(y)))
+        cw = min(w, SCREEN_W - cx)
+        ch = min(h, SCREEN_H - cy)
+        crop = img_screen.crop((cx, cy, cx + cw, cy + ch))
         buf = io.BytesIO()
         crop.save(buf, format="JPEG", quality=95)
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode('ascii')
@@ -72,14 +79,14 @@ HTML_TEMPLATE = """
     background: #0f141c;
   }
 
-  /* FULL DESKTOP WALLPAPER BLENDING LAYER (Dynamically adapts to wallpaper changes) */
+  /* FULL DESKTOP WALLPAPER BLENDING LAYER (Dynamically adapts to wallpaper changes and widget movement) */
   .wallpaper-blend {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-size: 100% 100%;
+    background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
     z-index: 0;
@@ -132,6 +139,11 @@ HTML_TEMPLATE = """
     position: relative;
     overflow: hidden;
     pointer-events: auto;
+    cursor: grab;
+  }
+
+  .player-card:active {
+    cursor: grabbing;
   }
 
   /* DIAGONAL GLASS SPECULAR REFLECTION SHEEN */
@@ -268,7 +280,7 @@ HTML_TEMPLATE = """
     fill: currentColor;
   }
 
-  /* Spectrum Waveform Equalizer (34 Bars in Card) */
+  /* Spectrum Waveform Equalizer (34 Bars in Card) - Clickable to seek */
   .spectrum-container {
     width: 100%;
     height: 20px;
@@ -276,6 +288,8 @@ HTML_TEMPLATE = """
     align-items: center;
     justify-content: space-between;
     gap: 2px;
+    cursor: pointer;
+    padding: 2px 0;
   }
 
   .spectrum-bar {
@@ -367,7 +381,7 @@ HTML_TEMPLATE = """
     fill: currentColor;
   }
 
-  /* Glowing Circular Play / Pause Button */
+  /* Glowing Circular Play / Pause Button with Loading Spinner */
   .play-pause-btn {
     width: 28px;
     height: 28px;
@@ -381,11 +395,21 @@ HTML_TEMPLATE = """
     color: #ffffff;
     cursor: pointer;
     transition: all 0.2s ease;
+    position: relative;
   }
 
   .play-pause-btn:hover {
     transform: scale(1.12);
     box-shadow: 0 0 20px rgba(34, 211, 238, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  .play-pause-btn.loading {
+    animation: pulse-ring 1s infinite alternate ease-in-out;
+  }
+
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 8px rgba(34, 211, 238, 0.4); }
+    100% { box-shadow: 0 0 24px rgba(103, 232, 249, 1); }
   }
 
   .play-pause-btn svg {
@@ -556,7 +580,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
-<!-- Dynamic Desktop Wallpaper Blending Layer (Smoothly updates when wallpaper changes) -->
+<!-- Dynamic Desktop Wallpaper Blending Layer (Smoothly updates when wallpaper changes or widget is moved) -->
 <div class="wallpaper-blend" id="wallpaper-blend" style="background-image: url('__WALLPAPER_BACKDROP__');"></div>
 
 <!-- Desktop-Wide Flowing Waves & Spectrum Canvas -->
@@ -594,8 +618,8 @@ HTML_TEMPLATE = """
         </div>
       </div>
 
-      <!-- Real-time Equalizer (34 Bars in Card) -->
-      <div class="spectrum-container" id="spectrum-container">
+      <!-- Real-time Equalizer (34 Bars in Card) - Clickable to seek -->
+      <div class="spectrum-container" id="spectrum-container" title="Click to seek">
         <!-- Bars generated by JS -->
       </div>
 
@@ -630,7 +654,7 @@ HTML_TEMPLATE = """
           <button class="mini-btn" id="btn-repeat" title="Repeat">
             <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
           </button>
-          <button class="mini-btn" id="btn-playlist" title="Playlist">
+          <button class="mini-btn" id="btn-playlist" title="Playlist / Search">
             <svg viewBox="0 0 24 24"><path d="M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z"/></svg>
           </button>
         </div>
@@ -688,8 +712,9 @@ HTML_TEMPLATE = """
   let isPlaying = false;
   let isShuffle = false;
   let isRepeat = false;
+  let currentVidId = 'oC6brLXQe4I';
 
-  // Dynamic Live Wallpaper Update Function called by Python watcher
+  // Dynamic Live Wallpaper Update Function (called by Python watcher or on drag)
   window.updateLiveWallpaper = function(newB64) {
     if (wallpaperBlend && newB64) {
       wallpaperBlend.style.backgroundImage = `url("${newB64}")`;
@@ -705,6 +730,14 @@ HTML_TEMPLATE = """
     spectrumContainer.appendChild(bar);
     bars.push(bar);
   }
+
+  // Click on equalizer to seek
+  spectrumContainer.addEventListener('click', (e) => {
+    if (!audio.duration) return;
+    const rect = spectrumContainer.getBoundingClientRect();
+    const pos = (e.clientX - rect.left) / rect.width;
+    audio.currentTime = pos * audio.duration;
+  });
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -851,7 +884,13 @@ HTML_TEMPLATE = """
   }
   requestAnimationFrame(updateEqualizer);
 
+  // Instant Play / Pause toggle
   function togglePlay() {
+    if (!audio.src) {
+      btnPlayPause.classList.add('loading');
+      window.pywebview && window.pywebview.api.play_id(currentVidId);
+      return;
+    }
     if (audio.paused) {
       audio.play().then(() => {
         isPlaying = true;
@@ -871,10 +910,12 @@ HTML_TEMPLATE = """
   btnPlayPause.addEventListener('click', togglePlay);
 
   btnPrev.addEventListener('click', () => {
+    btnPlayPause.classList.add('loading');
     window.pywebview && window.pywebview.api.prev_track();
   });
 
   btnNext.addEventListener('click', () => {
+    btnPlayPause.classList.add('loading');
     window.pywebview && window.pywebview.api.next_track();
   });
 
@@ -918,6 +959,7 @@ HTML_TEMPLATE = """
   }
 
   window.setStreamUrl = function(url) {
+    btnPlayPause.classList.remove('loading');
     if (!url) return;
     audio.src = url;
     audio.volume = parseFloat(volSlider.value);
@@ -926,7 +968,7 @@ HTML_TEMPLATE = """
       playIcon.style.display = 'none';
       pauseIcon.style.display = 'block';
     }).catch(err => {
-      console.log('Autoplay error:', err);
+      console.log('Playback error:', err);
     });
   };
 
@@ -972,10 +1014,12 @@ HTML_TEMPLATE = """
           </div>
         `;
         div.addEventListener('click', () => {
+          currentVidId = item.id;
           trackTitle.textContent = item.title;
           trackSource.querySelector('span').textContent = item.artist;
           albumArt.src = item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`;
           searchModal.classList.remove('active');
+          btnPlayPause.classList.add('loading');
           window.pywebview && window.pywebview.api.play_id(item.id);
         });
         searchResultsList.appendChild(div);
@@ -991,6 +1035,33 @@ HTML_TEMPLATE = """
 
   btnMinimize.addEventListener('click', () => {
     window.pywebview && window.pywebview.api.minimize_window();
+  });
+
+  // Dragging support & Wallpaper backdrop refresh on move
+  let isDragging = false;
+  let startX = 0, startY = 0;
+
+  card.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.search-modal')) return;
+    isDragging = true;
+    startX = e.screenX;
+    startY = e.screenY;
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.screenX - startX;
+    const dy = e.screenY - startY;
+    startX = e.screenX;
+    startY = e.screenY;
+    window.pywebview && window.pywebview.api.move_window(dx, dy);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      window.pywebview && window.pywebview.api.on_drag_end();
+    }
   });
 </script>
 </body>
@@ -1030,6 +1101,21 @@ class MusicAPI:
                 w.minimize()
             except Exception:
                 pass
+
+    def move_window(self, dx, dy):
+        w = self.win_holder[0]
+        if w:
+            try:
+                w.move(w.x + int(dx), w.y + int(dy))
+            except Exception:
+                pass
+
+    def on_drag_end(self):
+        w = self.win_holder[0]
+        if w:
+            b64 = get_wallpaper_slice_b64(w.x, w.y, VIS_W, VIS_H)
+            if b64:
+                w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
 
     def search_songs(self, query):
         threading.Thread(target=self._search_async, args=(query,), daemon=True).start()
@@ -1102,8 +1188,10 @@ def wallpaper_watcher(api):
                     last_mtime = mtime
                     # Wait briefly for Windows to complete saving wallpaper
                     time.sleep(0.35)
-                    b64 = get_wallpaper_slice_b64(POS_X, POS_Y, VIS_W, VIS_H)
                     w = api.win_holder[0]
+                    cur_x = w.x if w else POS_X
+                    cur_y = w.y if w else POS_Y
+                    b64 = get_wallpaper_slice_b64(cur_x, cur_y, VIS_W, VIS_H)
                     if b64 and w:
                         w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
         except Exception:
@@ -1137,11 +1225,6 @@ def main():
 
     threading.Thread(target=wallpaper_watcher, args=(api,), daemon=True).start()
 
-    # Auto-start disabled per user request
-    # def auto_start():
-    #     time.sleep(1.2)
-    #     api.play_id("oC6brLXQe4I")
-    # threading.Thread(target=auto_start, daemon=True).start()
     webview.start()
 
 if __name__ == '__main__':
