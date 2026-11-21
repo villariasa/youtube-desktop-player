@@ -1,46 +1,115 @@
-name: Release
+name: Build and Release Binaries
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+  build-linux:
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Package Windows Release Archive
-        run: |
-          mkdir -p dist/windows-pkg/assets
-          cp widget.py install_windows.bat install_windows.ps1 launch.bat requirements.txt README.md dist/windows-pkg/
-          cp assets/* dist/windows-pkg/assets/
-          cd dist/windows-pkg
-          zip -r ../Desktop-Music-Visualizer-Windows.zip .
-          cd ../..
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Package Linux Release Archive
+      - name: Install Linux build dependencies
         run: |
-          mkdir -p dist/linux-pkg/assets
-          cp widget.py install_linux.sh requirements.txt README.md dist/linux-pkg/
-          cp assets/* dist/linux-pkg/assets/
-          chmod +x dist/linux-pkg/install_linux.sh
-          cd dist/linux-pkg
-          tar -czvf ../Desktop-Music-Visualizer-Linux.tar.gz .
-          cd ../..
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            libasound2-dev \
+            libpulse-dev \
+            patchelf \
+            desktop-file-utils \
+            file
 
-      - name: Create GitHub Release
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Build Standalone Linux Executable with PyInstaller
+        run: |
+          pyinstaller --noconfirm --onefile --windowed \
+            --name "Desktop-Music-Visualizer-v1.0.0-Linux.bin" \
+            --collect-all webview \
+            --collect-all soundcard \
+            widget.py
+          chmod +x dist/Desktop-Music-Visualizer-v1.0.0-Linux.bin
+
+      - name: Create AppImage & Debian Package
+        run: |
+          # 1. Prepare AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/applications
+
+          cp dist/Desktop-Music-Visualizer-v1.0.0-Linux.bin AppDir/usr/bin/desktop-music-visualizer
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/desktop-music-visualizer.png
+          cp assets/icon.png AppDir/desktop-music-visualizer.png
+          cp assets/icon.png AppDir/.DirIcon
+
+          cat << 'EOF' > AppDir/desktop-music-visualizer.desktop
+          [Desktop Entry]
+          Type=Application
+          Name=Desktop Music Visualizer
+          Comment=Anime Aesthetic Music Visualizer with YouTube Non-Stop Streaming
+          Exec=desktop-music-visualizer
+          Icon=desktop-music-visualizer
+          Categories=AudioVideo;Audio;Player;
+          Terminal=false
+          EOF
+          cp AppDir/desktop-music-visualizer.desktop AppDir/default.desktop
+
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/desktop-music-visualizer" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          # 2. Build AppImage using appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          sed -i 's|AI\x02|\x00\x00\x00|' appimagetool
+          ./appimagetool --appimage-extract-and-run AppDir dist/Desktop-Music-Visualizer-v1.0.0-Linux.AppImage || true
+
+          # 3. Build Debian .deb installer package
+          mkdir -p deb-pkg/DEBIAN
+          mkdir -p deb-pkg/usr/local/bin
+          mkdir -p deb-pkg/usr/share/applications
+          mkdir -p deb-pkg/usr/share/icons/hicolor/256x256/apps
+
+          cat << 'EOF' > deb-pkg/DEBIAN/control
+          Package: desktop-music-visualizer
+          Version: 1.0.0
+          Section: sound
+          Priority: optional
+          Architecture: amd64
+          Maintainer: villariasa
+          Description: Desktop Music Visualizer
+           Glassmorphism YouTube player widget with real-time audio visualization.
+          EOF
+
+          cp dist/Desktop-Music-Visualizer-v1.0.0-Linux.bin deb-pkg/usr/local/bin/desktop-music-visualizer
+          cp AppDir/desktop-music-visualizer.desktop deb-pkg/usr/share/applications/
+          cp assets/icon.png deb-pkg/usr/share/icons/hicolor/256x256/apps/desktop-music-visualizer.png
+          dpkg-deb --build deb-pkg dist/Desktop-Music-Visualizer-v1.0.0-Linux.deb
+
+      - name: Upload Binaries to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Desktop Music Visualizer ${{ github.ref_name }} (Windows & Linux)
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          tag_name: v1.0.0
           files: |
-            dist/Desktop-Music-Visualizer-Windows.zip
-            dist/Desktop-Music-Visualizer-Linux.tar.gz
+            dist/Desktop-Music-Visualizer-v1.0.0-Linux.bin
+            dist/Desktop-Music-Visualizer-v1.0.0-Linux.AppImage
+            dist/Desktop-Music-Visualizer-v1.0.0-Linux.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
