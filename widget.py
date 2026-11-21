@@ -1,12 +1,12 @@
 """
 Immersive Glassmorphism Desktop Music Visualizer
-- Desktop-wide audio visualization matching reference aesthetic
-- Flowing glowing cyan/teal/white smoke ribbon waves across the full desktop width
-- Atmospheric audio equalizer bars extending beyond the player card
-- Ultra-transparent glassmorphism player card centered above wallpaper
-- Wallpaper-blended background ensuring 100% seamless integration with desktop wallpaper
-- Direct streaming HTML5 audio via yt-dlp (pure audio, unmuted, high quality)
+- 100% TRUE native desktop transparency (transparent=True, zero fake screenshot tricks)
+- Live desktop wallpaper shows through seamlessly whenever wallpaper changes
+- Desktop-wide audio-reactive flowing smoke ribbon waves in cyan, teal, and white
+- Atmospheric spectrum equalizer bars on left and right sides of desktop
+- Floating frosted glassmorphism player card centered above wallpaper
 - Full interactive controls: Volume, Seek/Time, Prev, Glowing Circular Pause, Next, Shuffle, Repeat, Search
+- Unmuted direct streaming HTML5 audio via yt-dlp
 - Desktop level (on_top=False, never overlaps other applications)
 """
 import webview
@@ -16,39 +16,20 @@ import json
 import ctypes
 import os
 import sys
-import io
-import base64
-from PIL import Image, ImageFilter
 
-# Screen metrics
+# Screen dimensions
 user32 = ctypes.windll.user32
 SCREEN_W = user32.GetSystemMetrics(0)
 SCREEN_H = user32.GetSystemMetrics(1)
 
 # Full-desktop width visualization bar just above Windows taskbar
 TASKBAR_H = 48
-VIS_H = 210
+VIS_H = 200
 VIS_W = SCREEN_W
 POS_X = 0
 POS_Y = SCREEN_H - VIS_H - TASKBAR_H
 
-def get_wallpaper_slice_b64(x, y, w, h):
-    """Crops and returns base64 JPEG of the desktop wallpaper for seamless blending."""
-    try:
-        wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
-        if not os.path.exists(wp_path):
-            return ""
-        img = Image.open(wp_path).convert("RGB")
-        img_screen = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
-        crop = img_screen.crop((x, y, x + w, y + h))
-        buf = io.BytesIO()
-        crop.save(buf, format="JPEG", quality=95)
-        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode('ascii')
-    except Exception as e:
-        print("Wallpaper crop error:", e)
-        return ""
-
-HTML_TEMPLATE = """
+HTML_CONTENT = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,29 +46,17 @@ HTML_TEMPLATE = """
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
+  /* 100% NATIVE TRANSPARENT CANVAS DIRECTLY TO LIVE DESKTOP WALLPAPER */
   html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
     position: relative;
-    background: #0f141c;
+    background: transparent !important;
+    background-color: transparent !important;
   }
 
-  /* FULL DESKTOP WALLPAPER BLENDING LAYER */
-  .wallpaper-blend {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-    background-position: center;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* FULL-SCREEN AUDIO REACTIVE WAVES CANVAS */
+  /* DESKTOP-WIDE AUDIO REACTIVE WAVES CANVAS */
   #desktop-waves {
     position: absolute;
     top: 0;
@@ -98,7 +67,7 @@ HTML_TEMPLATE = """
     pointer-events: none;
   }
 
-  /* CENTERED ULTRA-TRANSPARENT GLASSMORPHISM PLAYER CARD */
+  /* CENTERED ULTRA-TRANSPARENT GLASS CARD CONTAINER */
   .player-card-container {
     position: absolute;
     top: 0;
@@ -114,17 +83,17 @@ HTML_TEMPLATE = """
 
   .player-card {
     width: 590px;
-    height: 124px;
-    background: rgba(13, 23, 33, 0.42);
-    backdrop-filter: blur(22px) saturate(160%);
-    -webkit-backdrop-filter: blur(22px) saturate(160%);
-    border: 1.2px solid rgba(103, 232, 249, 0.48);
+    height: 122px;
+    background: rgba(12, 22, 34, 0.42);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1.2px solid rgba(103, 232, 249, 0.50);
     border-radius: 16px;
     box-shadow: 
-      0 0 28px rgba(6, 182, 212, 0.28),
+      0 0 28px rgba(6, 182, 212, 0.32),
       0 12px 36px rgba(0, 0, 0, 0.65),
-      inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
-      inset 0 -1px 1.5px rgba(34, 211, 238, 0.2);
+      inset 0 1px 1.5px rgba(255, 255, 255, 0.42),
+      inset 0 -1px 1.5px rgba(34, 211, 238, 0.22);
     display: flex;
     align-items: center;
     padding: 12px 16px;
@@ -144,7 +113,7 @@ HTML_TEMPLATE = """
     bottom: 0;
     background: linear-gradient(
       126deg,
-      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.24) 0%,
       rgba(255, 255, 255, 0.06) 24%,
       transparent 48%,
       rgba(34, 211, 238, 0.08) 72%,
@@ -163,21 +132,21 @@ HTML_TEMPLATE = """
     left: 20px;
     right: 20px;
     height: 1.5px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 40%, rgba(103, 232, 249, 0.9) 60%, transparent 100%);
-    box-shadow: 0 0 8px rgba(103, 232, 249, 0.7);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.9) 40%, rgba(103, 232, 249, 0.95) 60%, transparent 100%);
+    box-shadow: 0 0 10px rgba(103, 232, 249, 0.8);
     pointer-events: none;
     z-index: 6;
   }
 
   /* Album Artwork */
   .album-wrap {
-    width: 80px;
-    height: 80px;
+    width: 78px;
+    height: 78px;
     border-radius: 10px;
     overflow: hidden;
     position: relative;
     flex-shrink: 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(34, 211, 238, 0.3);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), 0 0 12px rgba(34, 211, 238, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.25);
     z-index: 8;
   }
@@ -189,19 +158,19 @@ HTML_TEMPLATE = """
     display: block;
   }
 
-  /* Main Info Column */
+  /* Main Column */
   .main-column {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 80px;
+    height: 78px;
     min-width: 0;
     position: relative;
     z-index: 8;
   }
 
-  /* Track Title & Top Actions */
+  /* Track Title & Top Action Buttons */
   .track-row {
     display: flex;
     justify-content: space-between;
@@ -221,7 +190,7 @@ HTML_TEMPLATE = """
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
     letter-spacing: -0.2px;
   }
 
@@ -247,7 +216,7 @@ HTML_TEMPLATE = """
   .icon-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     padding: 2px 4px;
     display: flex;
@@ -271,7 +240,7 @@ HTML_TEMPLATE = """
   /* Spectrum Waveform Equalizer (34 Bars in Card) */
   .spectrum-container {
     width: 100%;
-    height: 20px;
+    height: 19px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -285,7 +254,7 @@ HTML_TEMPLATE = """
     height: 3px;
     border-radius: 999px;
     background: linear-gradient(180deg, #67e8f9 0%, #22d3ee 50%, #0891b2 100%);
-    box-shadow: 0 0 6px rgba(34, 211, 238, 0.6);
+    box-shadow: 0 0 6px rgba(34, 211, 238, 0.65);
     transition: height 0.08s ease, filter 0.15s ease;
   }
 
@@ -308,7 +277,7 @@ HTML_TEMPLATE = """
   .vol-icon {
     width: 12px;
     height: 12px;
-    fill: rgba(255, 255, 255, 0.65);
+    fill: rgba(255, 255, 255, 0.7);
     flex-shrink: 0;
   }
 
@@ -372,9 +341,9 @@ HTML_TEMPLATE = """
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(34, 211, 238, 0.35) 100%);
-    border: 1.5px solid rgba(103, 232, 249, 0.8);
-    box-shadow: 0 0 14px rgba(34, 211, 238, 0.7), inset 0 0 6px rgba(255, 255, 255, 0.35);
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(34, 211, 238, 0.45) 100%);
+    border: 1.5px solid rgba(103, 232, 249, 0.85);
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.75), inset 0 0 6px rgba(255, 255, 255, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -405,14 +374,14 @@ HTML_TEMPLATE = """
 
   .time-display {
     font-size: 9.5px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.75);
     font-variant-numeric: tabular-nums;
   }
 
   .mini-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
     padding: 2px;
     display: flex;
@@ -556,10 +525,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
-<!-- Wallpaper Blending Background -->
-<div class="wallpaper-blend" style="background-image: url('__WALLPAPER_BACKDROP__');"></div>
-
-<!-- Desktop-Wide Flowing Waves & Spectrum Canvas -->
+<!-- Desktop-Wide Flowing Waves & Spectrum Canvas (100% Transparent to Live Wallpaper) -->
 <canvas id="desktop-waves"></canvas>
 
 <!-- Centered Glassmorphism Card -->
@@ -572,12 +538,12 @@ HTML_TEMPLATE = """
 
     <!-- Main Content -->
     <div class="main-column">
-      <!-- Title & Action Buttons -->
+      <!-- Title & Top Action Buttons -->
       <div class="track-row">
         <div class="track-meta">
           <div class="track-title" id="track-title">BAYMONSTER - DESERVE MV</div>
           <div class="track-source" id="track-source">
-            <svg style="width:10px;height:10px;fill:#ef4444;" viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L22 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73z"/></svg>
+            <svg style="width:10px;height:10px;fill:#ef4444;" viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
             <span>YouTube</span>
           </div>
         </div>
@@ -589,7 +555,7 @@ HTML_TEMPLATE = """
             <svg viewBox="0 0 24 24"><path d="M5 12h14v2H5z"/></svg>
           </button>
           <button class="icon-btn" id="btn-close" title="Close">
-            <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 0 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
           </button>
         </div>
       </div>
@@ -621,7 +587,7 @@ HTML_TEMPLATE = """
           </button>
         </div>
 
-        <!-- Right: Time, Shuffle, Repeat, Search -->
+        <!-- Right: Time, Shuffle, Repeat, Playlist -->
         <div class="controls-right">
           <span class="time-display" id="time-display">0:00 / 0:00</span>
           <button class="mini-btn" id="btn-shuffle" title="Shuffle">
@@ -643,7 +609,7 @@ HTML_TEMPLATE = """
         <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
         <button class="search-submit-btn" id="search-submit-btn">FIND</button>
         <button class="icon-btn" id="btn-search-close">
-          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 0 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
         </button>
       </div>
       <div class="search-results-list" id="search-results-list">
@@ -653,7 +619,7 @@ HTML_TEMPLATE = """
   </div>
 </div>
 
-<!-- Pure Unmuted HTML5 Audio -->
+<!-- Standalone HTML5 Audio (Direct Unmuted Streaming) -->
 <audio id="audio-player" preload="auto"></audio>
 
 <script>
@@ -688,7 +654,7 @@ HTML_TEMPLATE = """
   let isShuffle = false;
   let isRepeat = false;
 
-  // 34 Equalizer Spectrum Bars inside Card
+  // 34 Equalizer Bars in Card
   const NUM_BARS = 34;
   const bars = [];
   for (let i = 0; i < NUM_BARS; i++) {
@@ -711,7 +677,7 @@ HTML_TEMPLATE = """
   for (let p = 0; p < 45; p++) {
     particles.push({
       x: Math.random() * window.innerWidth,
-      y: 80 + Math.random() * 110,
+      y: 70 + Math.random() * 110,
       radius: Math.random() * 2 + 1,
       speedX: Math.random() * 0.8 + 0.3,
       alpha: Math.random() * 0.6 + 0.2
@@ -726,9 +692,8 @@ HTML_TEMPLATE = """
     const h = canvas.height;
 
     waveTime += isPlaying ? 0.025 : 0.008;
-    const baseAmp = isPlaying ? 24 : 8;
+    const baseAmp = isPlaying ? 22 : 7;
 
-    // Atmospheric Spectrum Bars on Left (x: 200 - 380) & Right (x: 1120 - 1300)
     const cardLeft = (w - 590) / 2;
     const cardRight = cardLeft + 590;
 
@@ -810,7 +775,7 @@ HTML_TEMPLATE = """
     ctx.shadowColor = '#0891b2';
     ctx.stroke();
 
-    // Draw Floating Glowing Specks / Particles
+    // Draw Floating Glowing Particles
     particles.forEach(p => {
       p.x += p.speedX * (isPlaying ? 1.4 : 0.6);
       if (p.x > w) p.x = 0;
@@ -1085,24 +1050,20 @@ def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
 
-    # 1. Sample exact full-width desktop wallpaper behind visualization layer
-    wp_b64 = get_wallpaper_slice_b64(POS_X, POS_Y, VIS_W, VIS_H)
-    final_html = HTML_TEMPLATE.replace('__WALLPAPER_BACKDROP__', wp_b64)
-
-    # 2. Create Desktop-Wide Visualizer Window
+    # 100% Native Windows Transparent Window (zero fake screenshot tricks)
     # on_top=False ensures it rests on the desktop and NEVER overlaps other apps
     w = webview.create_window(
         title='Desktop Music Visualizer',
-        html=final_html,
+        html=HTML_CONTENT,
         width=VIS_W,
         height=VIS_H,
         x=POS_X,
         y=POS_Y,
         frameless=True,
+        transparent=True,
         resizable=False,
         on_top=False,
-        js_api=api,
-        background_color='#0f141c'
+        js_api=api
     )
     win_holder[0] = w
 
