@@ -26,6 +26,7 @@ import websockets
 import numpy as np
 import soundcard as sc
 import warnings
+import colorsys
 sys.coinit_flags = 0
 from pycaw.pycaw import AudioUtilities
 from PIL import Image
@@ -33,6 +34,71 @@ from PIL import Image
 warnings.filterwarnings('ignore')
 
 AUDIO_WS_PORT = 8765
+
+def extract_aesthetic_palette(img_path):
+    """
+    Extracts the most aesthetic vibrant accent palette from the active desktop wallpaper.
+    Samples dominant hues, evaluates color harmony, and enhances neon vibrance for the
+    glassmorphism player, flowing waves, particles, and spectrum equalizer bars.
+    """
+    default_palette = {
+        'primary': '#22d3ee',
+        'secondary': '#a5f3fc',
+        'glow': 'rgba(34, 211, 238, 0.7)',
+        'glow_subtle': 'rgba(34, 211, 238, 0.28)',
+        'glass': 'rgba(13, 23, 33, 0.42)',
+        'border': 'rgba(103, 232, 249, 0.48)',
+        'rgb': [34, 211, 238],
+        'sec_rgb': [165, 243, 252]
+    }
+    if not os.path.exists(img_path):
+        return default_palette
+    try:
+        img = Image.open(img_path).convert('RGB')
+        small = img.resize((100, 100))
+        palette_img = small.quantize(colors=24, method=Image.Quantize.MEDIANCUT)
+        palette = palette_img.getpalette()[:72]
+        colors = [(palette[i*3], palette[i*3+1], palette[i*3+2]) for i in range(24)]
+        
+        scored_colors = []
+        for r, g, b in colors:
+            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
+            # Score favors rich, luminous vibrant tones (saturation > 0.2, brightness 0.25 - 0.9)
+            score = (s ** 1.25) * (1.0 - abs(v - 0.6) * 1.3)
+            scored_colors.append((score, (r, g, b), (h, s, v)))
+        
+        scored_colors.sort(key=lambda x: x[0], reverse=True)
+        best_score, (br, bg, bb), (bh, bs, bv) = scored_colors[0]
+        
+        # If the image is completely monochrome/grayscale, default to clean cool cyan
+        if bs < 0.12:
+            return default_palette
+            
+        # Boost saturation and brightness for luminous futuristic neon appearance
+        neon_s = min(1.0, bs * 1.35 + 0.15)
+        neon_v = max(0.8, min(0.98, bv * 1.3))
+        pr, pg, pb = [int(c * 255) for c in colorsys.hsv_to_rgb(bh, neon_s, neon_v)]
+        
+        # Secondary highlight (brighter, lighter tint)
+        sec_s = max(0.18, neon_s * 0.38)
+        sec_v = 0.98
+        sr, sg, sb = [int(c * 255) for c in colorsys.hsv_to_rgb((bh + 0.02) % 1.0, sec_s, sec_v)]
+        
+        # Subtle dark glass tint from wallpaper hue
+        dr, dg, db = [int(c * 255) for c in colorsys.hsv_to_rgb(bh, 0.45, 0.11)]
+        
+        return {
+            'primary': f'#{pr:02x}{pg:02x}{pb:02x}',
+            'secondary': f'#{sr:02x}{sg:02x}{sb:02x}',
+            'glow': f'rgba({pr}, {pg}, {pb}, 0.7)',
+            'glow_subtle': f'rgba({pr}, {pg}, {pb}, 0.28)',
+            'glass': f'rgba({dr}, {dg}, {db}, 0.42)',
+            'border': f'rgba({sr}, {sg}, {sb}, 0.48)',
+            'rgb': [pr, pg, pb],
+            'sec_rgb': [sr, sg, sb]
+        }
+    except Exception:
+        return default_palette
 
 def get_system_volume():
     """Reads the current active Windows device master volume (0.0 to 1.0)."""
@@ -217,6 +283,15 @@ HTML_TEMPLATE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Desktop Music Visualizer</title>
 <style>
+  :root {
+    --accent-primary: __ACCENT_PRIMARY__;
+    --accent-secondary: __ACCENT_SECONDARY__;
+    --accent-glow: __ACCENT_GLOW__;
+    --accent-glow-subtle: __ACCENT_GLOW_SUBTLE__;
+    --accent-glass: __ACCENT_GLASS__;
+    --accent-border: __ACCENT_BORDER__;
+  }
+
   * {
     margin: 0;
     padding: 0;
@@ -274,16 +349,16 @@ HTML_TEMPLATE = """
   .player-card {
     width: 590px;
     height: 124px;
-    background: rgba(13, 23, 33, 0.42);
+    background: var(--accent-glass);
     backdrop-filter: blur(22px) saturate(160%);
     -webkit-backdrop-filter: blur(22px) saturate(160%);
-    border: 1.2px solid rgba(103, 232, 249, 0.48);
+    border: 1.2px solid var(--accent-border);
     border-radius: 16px;
     box-shadow: 
-      0 0 28px rgba(6, 182, 212, 0.28),
+      0 0 28px var(--accent-glow-subtle),
       0 12px 36px rgba(0, 0, 0, 0.65),
       inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
-      inset 0 -1px 1.5px rgba(34, 211, 238, 0.2);
+      inset 0 -1px 1.5px var(--accent-glow-subtle);
     display: flex;
     align-items: center;
     padding: 12px 16px;
@@ -292,6 +367,7 @@ HTML_TEMPLATE = """
     overflow: hidden;
     pointer-events: auto;
     cursor: grab;
+    transition: background 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease;
   }
 
   .player-card:active {
@@ -311,7 +387,7 @@ HTML_TEMPLATE = """
       rgba(255, 255, 255, 0.22) 0%,
       rgba(255, 255, 255, 0.06) 24%,
       transparent 48%,
-      rgba(34, 211, 238, 0.08) 72%,
+      var(--accent-glow-subtle) 72%,
       transparent 100%
     );
     pointer-events: none;
@@ -327,10 +403,11 @@ HTML_TEMPLATE = """
     left: 20px;
     right: 20px;
     height: 1.5px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 40%, rgba(103, 232, 249, 0.9) 60%, transparent 100%);
-    box-shadow: 0 0 8px rgba(103, 232, 249, 0.7);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 40%, var(--accent-secondary) 60%, transparent 100%);
+    box-shadow: 0 0 8px var(--accent-glow);
     pointer-events: none;
     z-index: 6;
+    transition: background 0.6s ease, box-shadow 0.6s ease;
   }
 
   /* Album Artwork */
@@ -341,7 +418,7 @@ HTML_TEMPLATE = """
     overflow: hidden;
     position: relative;
     flex-shrink: 0;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(34, 211, 238, 0.3);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 12px var(--accent-glow-subtle);
     border: 1px solid rgba(255, 255, 255, 0.25);
     z-index: 8;
   }
@@ -450,9 +527,9 @@ HTML_TEMPLATE = """
     max-width: 5px;
     height: 3px;
     border-radius: 999px;
-    background: linear-gradient(180deg, #67e8f9 0%, #22d3ee 50%, #0891b2 100%);
-    box-shadow: 0 0 6px rgba(34, 211, 238, 0.6);
-    transition: height 0.08s ease, filter 0.15s ease;
+    background: linear-gradient(180deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+    box-shadow: 0 0 6px var(--accent-glow-subtle);
+    transition: height 0.08s ease, filter 0.15s ease, background 0.6s ease;
   }
 
   /* Controls Row */
@@ -493,10 +570,10 @@ HTML_TEMPLATE = """
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #22d3ee;
-    box-shadow: 0 0 6px #22d3ee;
+    background: var(--accent-primary);
+    box-shadow: 0 0 6px var(--accent-primary);
     cursor: pointer;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, background 0.6s ease;
   }
 
   .vol-slider::-webkit-slider-thumb:hover {
@@ -538,9 +615,9 @@ HTML_TEMPLATE = """
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(34, 211, 238, 0.35) 100%);
-    border: 1.5px solid rgba(103, 232, 249, 0.8);
-    box-shadow: 0 0 14px rgba(34, 211, 238, 0.7), inset 0 0 6px rgba(255, 255, 255, 0.35);
+    background: linear-gradient(135deg, var(--accent-glow-subtle) 0%, var(--accent-glow) 100%);
+    border: 1.5px solid var(--accent-secondary);
+    box-shadow: 0 0 14px var(--accent-glow), inset 0 0 6px rgba(255, 255, 255, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -552,7 +629,7 @@ HTML_TEMPLATE = """
 
   .play-pause-btn:hover {
     transform: scale(1.12);
-    box-shadow: 0 0 20px rgba(34, 211, 238, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 20px var(--accent-glow), inset 0 0 10px rgba(255, 255, 255, 0.5);
   }
 
   .play-pause-btn.loading {
@@ -560,8 +637,8 @@ HTML_TEMPLATE = """
   }
 
   @keyframes pulse-ring {
-    0% { box-shadow: 0 0 8px rgba(34, 211, 238, 0.4); }
-    100% { box-shadow: 0 0 24px rgba(103, 232, 249, 1); }
+    0% { box-shadow: 0 0 8px var(--accent-glow-subtle); }
+    100% { box-shadow: 0 0 24px var(--accent-glow); }
   }
 
   .play-pause-btn svg {
@@ -602,8 +679,8 @@ HTML_TEMPLATE = """
   }
 
   .mini-btn.active {
-    color: #22d3ee;
-    text-shadow: 0 0 6px #22d3ee;
+    color: var(--accent-primary);
+    text-shadow: 0 0 6px var(--accent-primary);
   }
 
   .mini-btn svg {
@@ -637,7 +714,7 @@ HTML_TEMPLATE = """
     align-items: center;
     gap: 6px;
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(103, 232, 249, 0.4);
+    border: 1px solid var(--accent-border);
     border-radius: 8px;
     padding: 5px 8px;
   }
@@ -656,7 +733,7 @@ HTML_TEMPLATE = """
   }
 
   .search-submit-btn {
-    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
     border: none;
     border-radius: 5px;
     color: #ffffff;
@@ -664,7 +741,7 @@ HTML_TEMPLATE = """
     font-weight: 700;
     padding: 3px 8px;
     cursor: pointer;
-    box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 8px var(--accent-glow-subtle);
   }
 
   .search-results-list {
@@ -681,7 +758,7 @@ HTML_TEMPLATE = """
   }
 
   .search-results-list::-webkit-scrollbar-thumb {
-    background: rgba(34, 211, 238, 0.4);
+    background: var(--accent-border);
     border-radius: 2px;
   }
 
@@ -697,7 +774,7 @@ HTML_TEMPLATE = """
   }
 
   .search-item:hover {
-    background: rgba(34, 211, 238, 0.2);
+    background: var(--accent-glow-subtle);
   }
 
   .search-item img {
@@ -949,6 +1026,28 @@ HTML_TEMPLATE = """
   const smoothWave = new Array(64).fill(0);
   const smoothBars = new Array(34).fill(0);
 
+  // Dynamic Live Palette Transition (Smoothly morphs colors when wallpaper changes)
+  let currentPalette = __PALETTE_JSON__;
+  let curPrimaryRGB = [...currentPalette.rgb];
+  let targetPrimaryRGB = [...currentPalette.rgb];
+  let curSecRGB = [...currentPalette.sec_rgb];
+  let targetSecRGB = [...currentPalette.sec_rgb];
+
+  window.updateLivePalette = function(newPalette) {
+    if (!newPalette) return;
+    currentPalette = newPalette;
+    targetPrimaryRGB = [...newPalette.rgb];
+    targetSecRGB = [...newPalette.sec_rgb];
+
+    const root = document.documentElement;
+    root.style.setProperty('--accent-primary', newPalette.primary);
+    root.style.setProperty('--accent-secondary', newPalette.secondary);
+    root.style.setProperty('--accent-glow', newPalette.glow);
+    root.style.setProperty('--accent-glow-subtle', newPalette.glow_subtle);
+    root.style.setProperty('--accent-glass', newPalette.glass);
+    root.style.setProperty('--accent-border', newPalette.border);
+  };
+
   function connectAudioWS() {
     const ws = new WebSocket('ws://127.0.0.1:8765');
     ws.onmessage = (e) => {
@@ -986,6 +1085,22 @@ HTML_TEMPLATE = """
       smoothBars[i] += (targetB - smoothBars[i]) * 0.32;
     }
 
+    // Smoothly morph canvas RGB colors towards the wallpaper's target palette
+    for (let c = 0; c < 3; c++) {
+      curPrimaryRGB[c] += (targetPrimaryRGB[c] - curPrimaryRGB[c]) * 0.08;
+      curSecRGB[c] += (targetSecRGB[c] - curSecRGB[c]) * 0.08;
+    }
+    const pR = Math.round(curPrimaryRGB[0]);
+    const pG = Math.round(curPrimaryRGB[1]);
+    const pB = Math.round(curPrimaryRGB[2]);
+
+    const sR = Math.round(curSecRGB[0]);
+    const sG = Math.round(curSecRGB[1]);
+    const sB = Math.round(curSecRGB[2]);
+
+    const pColor = `rgb(${pR}, ${pG}, ${pB})`;
+    const sColor = `rgb(${sR}, ${sG}, ${sB})`;
+
     // Baseline calm breathing phase
     wavePhase += 0.012 + smoothVol * 0.038;
 
@@ -999,9 +1114,9 @@ HTML_TEMPLATE = """
       const barVal = smoothBars[bIdx % 12] || 0;
       const dist = 1 - Math.abs(lx - (cardLeft - 100)) / 90;
       const hBar = Math.max(3, barVal * 34 * dist + (smoothVol > 0.02 ? 2 : 0));
-      ctx.fillStyle = `rgba(34, 211, 238, ${0.28 + barVal * 0.65})`;
+      ctx.fillStyle = `rgba(${pR}, ${pG}, ${pB}, ${0.28 + barVal * 0.65})`;
       ctx.shadowBlur = 8 + barVal * 14;
-      ctx.shadowColor = '#06b6d4';
+      ctx.shadowColor = pColor;
       ctx.fillRect(lx, h - 35 - hBar, 3.5, hBar);
       bIdx++;
     }
@@ -1012,9 +1127,9 @@ HTML_TEMPLATE = """
       const barVal = smoothBars[bIdx % 34] || 0;
       const dist = 1 - Math.abs(rx - (cardRight + 100)) / 90;
       const hBar = Math.max(3, barVal * 30 * dist + (smoothVol > 0.02 ? 2 : 0));
-      ctx.fillStyle = `rgba(103, 232, 249, ${0.28 + barVal * 0.65})`;
+      ctx.fillStyle = `rgba(${sR}, ${sG}, ${sB}, ${0.28 + barVal * 0.65})`;
       ctx.shadowBlur = 8 + barVal * 14;
-      ctx.shadowColor = '#22d3ee';
+      ctx.shadowColor = sColor;
       ctx.fillRect(rx, h - 35 - hBar, 3.5, hBar);
       bIdx++;
     }
@@ -1046,12 +1161,12 @@ HTML_TEMPLATE = """
     ctx.closePath();
     const grad1 = ctx.createLinearGradient(0, speechBaseY - 20, 0, h);
     const fillAlpha = Math.min(0.45, 0.08 + smoothVol * 0.28 + smoothBass * 0.2);
-    grad1.addColorStop(0, `rgba(6, 182, 212, ${fillAlpha})`);
+    grad1.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${fillAlpha})`);
     grad1.addColorStop(0.5, `rgba(15, 23, 42, ${fillAlpha * 0.7})`);
     grad1.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
     ctx.fillStyle = grad1;
     ctx.shadowBlur = 16 + smoothVocalMid * 20;
-    ctx.shadowColor = 'rgba(34, 211, 238, 0.75)';
+    ctx.shadowColor = `rgba(${pR}, ${pG}, ${pB}, 0.75)`;
     ctx.fill();
 
     // Sharp luminous vocal stroke
@@ -1068,10 +1183,10 @@ HTML_TEMPLATE = """
       const y = speechBaseY + voiceOscillation + flowingEnergy;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = `rgba(103, 232, 249, ${Math.min(1.0, 0.45 + smoothVocalMid * 0.55)})`;
+    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(1.0, 0.45 + smoothVocalMid * 0.55)})`;
     ctx.lineWidth = 1.8 + smoothVocalHigh * 1.8;
     ctx.shadowBlur = 10 + smoothVocalMid * 18;
-    ctx.shadowColor = '#22d3ee';
+    ctx.shadowColor = sColor;
     ctx.stroke();
 
     // --- WAVE 2: SUB-BASS & BEAT DROP PULSE RIBBON ---
@@ -1088,10 +1203,10 @@ HTML_TEMPLATE = """
       const y = bassBaseY + bassSwell + subHarmonic;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = `rgba(224, 242, 254, ${Math.min(0.95, 0.35 + smoothBass * 0.6)})`;
+    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(0.95, 0.45 + smoothBass * 0.55)})`;
     ctx.lineWidth = 1.6 + smoothBeat * 2.2;
     ctx.shadowBlur = 10 + smoothBass * 18;
-    ctx.shadowColor = '#e0f2fe';
+    ctx.shadowColor = pColor;
     ctx.stroke();
 
     // --- WAVE 3: TREBLE & BRILLIANCE SHIMMER RIBBON ---
@@ -1107,10 +1222,10 @@ HTML_TEMPLATE = """
       const y = trebleBaseY + shimmer;
       ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = `rgba(34, 211, 238, ${Math.min(0.85, 0.25 + smoothTreble * 0.65)})`;
+    ctx.strokeStyle = `rgba(${pR}, ${pG}, ${pB}, ${Math.min(0.85, 0.25 + smoothTreble * 0.65)})`;
     ctx.lineWidth = 1.2 + smoothTreble * 1.2;
     ctx.shadowBlur = 6 + smoothTreble * 12;
-    ctx.shadowColor = '#0891b2';
+    ctx.shadowColor = pColor;
     ctx.stroke();
 
     // --- DRIFTING PARTICLES (Speed & brightness react to live audio volume & beats) ---
@@ -1120,9 +1235,9 @@ HTML_TEMPLATE = """
       ctx.beginPath();
       const pY = p.y + Math.sin(p.x * 0.01 + wavePhase) * (6 + smoothBass * 12);
       ctx.arc(p.x, pY, p.radius + smoothBeat * 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(165, 243, 252, ${Math.min(1.0, p.alpha + smoothVol * 0.5)})`;
+      ctx.fillStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(1.0, p.alpha + smoothVol * 0.5)})`;
       ctx.shadowBlur = 4 + smoothVol * 12;
-      ctx.shadowColor = '#67e8f9';
+      ctx.shadowColor = sColor;
       ctx.fill();
     });
 
@@ -1132,11 +1247,16 @@ HTML_TEMPLATE = """
 
   // Equalizer in card (Driven 100% by live FFT audio frequency bands)
   function updateEqualizer() {
+    const pR = Math.round(curPrimaryRGB[0]);
+    const pG = Math.round(curPrimaryRGB[1]);
+    const pB = Math.round(curPrimaryRGB[2]);
+    const pColor = `rgba(${pR}, ${pG}, ${pB}, 0.85)`;
+
     for (let i = 0; i < NUM_BARS; i++) {
       const freqVal = smoothBars[i] || 0;
       const targetHeight = Math.max(3, Math.min(18, 3 + freqVal * 15));
       bars[i].style.height = targetHeight + 'px';
-      bars[i].style.filter = freqVal > 0.08 ? `drop-shadow(0 0 ${4 + freqVal * 6}px rgba(34, 211, 238, 0.85))` : 'none';
+      bars[i].style.filter = freqVal > 0.08 ? `drop-shadow(0 0 ${4 + freqVal * 6}px ${pColor})` : 'none';
     }
     requestAnimationFrame(updateEqualizer);
   }
@@ -1538,7 +1658,7 @@ class MusicAPI:
 
 
 def wallpaper_watcher(api):
-    """Monitors Windows desktop wallpaper changes and updates full wallpaper image."""
+    """Monitors Windows desktop wallpaper changes and updates full wallpaper image & dynamic aesthetic palette."""
     wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
     last_mtime = 0
     try:
@@ -1559,9 +1679,13 @@ def wallpaper_watcher(api):
                         b64 = get_full_wallpaper_b64()
                         if b64:
                             break
+                    palette = extract_aesthetic_palette(wp_path)
                     w = api.win_holder[0]
-                    if b64 and w:
-                        w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
+                    if w:
+                        if b64:
+                            w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
+                        if palette:
+                            w.evaluate_js(f"window.updateLivePalette({json.dumps(palette)});")
         except Exception:
             pass
         time.sleep(0.6)
@@ -1599,6 +1723,10 @@ def main():
     # Query active Windows device master volume to match user's exact system level
     dev_vol = get_system_volume()
 
+    # Sample and extract the best aesthetic color palette from the current wallpaper
+    wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
+    palette = extract_aesthetic_palette(wp_path)
+
     # Load high-quality full resized wallpaper image
     wp_b64 = get_full_wallpaper_b64()
     final_html = (HTML_TEMPLATE
@@ -1606,7 +1734,14 @@ def main():
                   .replace('__SCREEN_H__', str(SCREEN_H))
                   .replace('__POS_X__', str(POS_X))
                   .replace('__POS_Y__', str(POS_Y))
-                  .replace('__DEVICE_VOL__', str(dev_vol)))
+                  .replace('__DEVICE_VOL__', str(dev_vol))
+                  .replace('__ACCENT_PRIMARY__', palette['primary'])
+                  .replace('__ACCENT_SECONDARY__', palette['secondary'])
+                  .replace('__ACCENT_GLOW__', palette['glow'])
+                  .replace('__ACCENT_GLOW_SUBTLE__', palette['glow_subtle'])
+                  .replace('__ACCENT_GLASS__', palette['glass'])
+                  .replace('__ACCENT_BORDER__', palette['border'])
+                  .replace('__PALETTE_JSON__', json.dumps(palette)))
 
     # Desktop-wide visualizer window: on_top=False ensures it NEVER overlaps working apps
     w = webview.create_window(
