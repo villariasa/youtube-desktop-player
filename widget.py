@@ -1,12 +1,13 @@
 """
 Immersive Glassmorphism Desktop Music Visualizer
+- Real-time dynamic glass dragging: wallpaper flows smoothly through glass during drag
+- Active live wallpaper watcher: auto-adapts instantly to Next Desktop Background
+- YouTube Auto-Next: automatically plays next related songs from artist/playlist when song ends
+- YouTube Non-Stop: continuous uninterrupted playback with automatic error recovery
 - Desktop-wide audio-reactive flowing ribbon waves in cyan, teal, and white
 - Atmospheric spectrum equalizer bars on left and right sides of desktop
 - Centered ultra-transparent glassmorphism player card
-- Dynamically see-through wallpaper: moves with widget and re-crops at new position
-- Live dynamic wallpaper watcher: automatically adapts when switching wallpapers (Next Desktop Background)
-- Direct streaming unmuted HTML5 audio via yt-dlp on play button click (zero auto-play during test)
-- Interactive dragging: drag anywhere on card to reposition, dynamically updating backdrop
+- Direct streaming unmuted HTML5 audio via yt-dlp on play button click
 - Full controls: Click-to-seek, Volume slider, Prev/Next, Glowing Circular Play/Pause, Shuffle, Repeat, Search
 - Desktop level (on_top=False, never overlaps other applications)
 """
@@ -20,38 +21,36 @@ import sys
 import io
 import time
 import base64
-from PIL import Image, ImageFilter
+from PIL import Image
 
-# Screen metrics
+# Screen metrics & dynamic desktop work area
 user32 = ctypes.windll.user32
+import ctypes.wintypes
 SCREEN_W = user32.GetSystemMetrics(0)
 SCREEN_H = user32.GetSystemMetrics(1)
 
-# Full-desktop width visualization bar just above Windows taskbar
-TASKBAR_H = 48
+# Dynamically query active desktop work area (handles taskbar visible or auto-hidden)
+rect = ctypes.wintypes.RECT()
+user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0)
+WORK_BOTTOM = rect.bottom if rect.bottom > 0 else SCREEN_H
+
 VIS_H = 210
 VIS_W = SCREEN_W
 POS_X = 0
-POS_Y = SCREEN_H - VIS_H - TASKBAR_H
+POS_Y = max(0, WORK_BOTTOM - VIS_H)
 
-def get_wallpaper_slice_b64(x=POS_X, y=POS_Y, w=VIS_W, h=VIS_H):
-    """Crops and returns base64 JPEG of the desktop wallpaper for seamless blending at specific coordinates."""
+def get_full_wallpaper_b64():
+    """Generates a high-quality resized base64 JPEG of the entire desktop wallpaper."""
     try:
         wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
         if not os.path.exists(wp_path):
             return ""
         img = Image.open(wp_path).convert("RGB")
         img_screen = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
-        # Clamp bounds
-        cx = max(0, min(SCREEN_W - 10, int(x)))
-        cy = max(0, min(SCREEN_H - 10, int(y)))
-        cw = min(w, SCREEN_W - cx)
-        ch = min(h, SCREEN_H - cy)
-        crop = img_screen.crop((cx, cy, cx + cw, cy + ch))
         buf = io.BytesIO()
-        crop.save(buf, format="JPEG", quality=95)
+        img_screen.save(buf, format="JPEG", quality=92)
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode('ascii')
-    except Exception as e:
+    except Exception:
         return ""
 
 HTML_TEMPLATE = """
@@ -79,19 +78,16 @@ HTML_TEMPLATE = """
     background: #0f141c;
   }
 
-  /* FULL DESKTOP WALLPAPER BLENDING LAYER (Dynamically adapts to wallpaper changes and widget movement) */
+  /* FULL DESKTOP WALLPAPER BLENDING LAYER (Flows dynamically during drag) */
   .wallpaper-blend {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-size: cover;
     background-repeat: no-repeat;
-    background-position: center;
     z-index: 0;
     pointer-events: none;
-    transition: background-image 0.4s ease, opacity 0.3s ease;
   }
 
   /* FULL-SCREEN AUDIO REACTIVE WAVES CANVAS */
@@ -599,7 +595,7 @@ HTML_TEMPLATE = """
       <!-- Title & Action Buttons -->
       <div class="track-row">
         <div class="track-meta">
-          <div class="track-title" id="track-title">BAYMONSTER - DESERVE MV</div>
+          <div class="track-title" id="track-title">BABYMONSTER - DESERVE MV</div>
           <div class="track-source" id="track-source">
             <svg style="width:10px;height:10px;fill:#ef4444;" viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
             <span>YouTube</span>
@@ -714,11 +710,29 @@ HTML_TEMPLATE = """
   let isRepeat = false;
   let currentVidId = 'oC6brLXQe4I';
 
-  // Dynamic Live Wallpaper Update Function (called by Python watcher or on drag)
+  // Screen resolution for 1:1 background alignment
+  const SCREEN_W = window.innerWidth;
+  const SCREEN_H = __SCREEN_H__;
+
+  let currentWindowX = __POS_X__;
+  let currentWindowY = __POS_Y__;
+
+  // Initialize 1:1 wallpaper alignment
+  wallpaperBlend.style.backgroundSize = `${SCREEN_W}px ${SCREEN_H}px`;
+  wallpaperBlend.style.backgroundPosition = `-${currentWindowX}px -${currentWindowY}px`;
+
+  // Dynamic Live Wallpaper Update Function (called when Windows background changes)
   window.updateLiveWallpaper = function(newB64) {
     if (wallpaperBlend && newB64) {
       wallpaperBlend.style.backgroundImage = `url("${newB64}")`;
     }
+  };
+
+  // Sync exact position from Python
+  window.syncPosition = function(x, y) {
+    currentWindowX = x;
+    currentWindowY = y;
+    wallpaperBlend.style.backgroundPosition = `-${currentWindowX}px -${currentWindowY}px`;
   };
 
   // 34 Equalizer Bars in Card
@@ -945,10 +959,23 @@ HTML_TEMPLATE = """
     timeDisplay.textContent = `${cur} / ${dur}`;
   });
 
+  // YOUTUBE AUTO-NEXT & NONSTOP PLAYBACK
   audio.addEventListener('ended', () => {
-    if (!isRepeat) {
-      window.pywebview && window.pywebview.api.next_track();
+    if (isRepeat) {
+      audio.currentTime = 0;
+      audio.play();
+    } else {
+      btnPlayPause.classList.add('loading');
+      window.pywebview && window.pywebview.api.auto_next();
     }
+  });
+
+  // Nonstop error recovery: if a stream fails, automatically move to next song
+  audio.addEventListener('error', () => {
+    console.log('Audio playback error, auto-recovering next song...');
+    setTimeout(() => {
+      window.pywebview && window.pywebview.api.auto_next();
+    }, 1000);
   });
 
   function formatTime(sec) {
@@ -970,6 +997,13 @@ HTML_TEMPLATE = """
     }).catch(err => {
       console.log('Playback error:', err);
     });
+  };
+
+  // Called when song changes (auto-next or search select)
+  window.updateTrackInfo = function(title, artist, thumb) {
+    if (title) trackTitle.textContent = title;
+    if (artist) trackSource.querySelector('span').textContent = artist;
+    if (thumb) albumArt.src = thumb;
   };
 
   // Search Modal
@@ -1015,9 +1049,7 @@ HTML_TEMPLATE = """
         `;
         div.addEventListener('click', () => {
           currentVidId = item.id;
-          trackTitle.textContent = item.title;
-          trackSource.querySelector('span').textContent = item.artist;
-          albumArt.src = item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`;
+          window.updateTrackInfo(item.title, item.artist, item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`);
           searchModal.classList.remove('active');
           btnPlayPause.classList.add('loading');
           window.pywebview && window.pywebview.api.play_id(item.id);
@@ -1037,12 +1069,15 @@ HTML_TEMPLATE = """
     window.pywebview && window.pywebview.api.minimize_window();
   });
 
-  // Dragging support & Wallpaper backdrop refresh on move
+  // REAL-TIME DYNAMIC GLASS DRAGGING
+  // As you drag, the background wallpaper position slides in real-time at 60 FPS!
   let isDragging = false;
   let startX = 0, startY = 0;
+  let movePending = false;
+  let targetDx = 0, targetDy = 0;
 
   card.addEventListener('mousedown', (e) => {
-    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.search-modal')) return;
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.search-modal') || e.target.closest('.spectrum-container')) return;
     isDragging = true;
     startX = e.screenX;
     startY = e.screenY;
@@ -1052,15 +1087,43 @@ HTML_TEMPLATE = """
     if (!isDragging) return;
     const dx = e.screenX - startX;
     const dy = e.screenY - startY;
+    if (dx === 0 && dy === 0) return;
     startX = e.screenX;
     startY = e.screenY;
-    window.pywebview && window.pywebview.api.move_window(dx, dy);
+
+    // 1. Real-time background flow: shift wallpaper background in perfect lockstep with desktop!
+    currentWindowX += dx;
+    currentWindowY += dy;
+    wallpaperBlend.style.backgroundPosition = `-${currentWindowX}px -${currentWindowY}px`;
+
+    // 2. Move OS window with RAF batching
+    targetDx += dx;
+    targetDy += dy;
+
+    if (!movePending) {
+      movePending = true;
+      requestAnimationFrame(() => {
+        if (targetDx !== 0 || targetDy !== 0) {
+          window.pywebview && window.pywebview.api.move_window(targetDx, targetDy);
+          targetDx = 0;
+          targetDy = 0;
+        }
+        movePending = false;
+      });
+    }
   });
 
   document.addEventListener('mouseup', () => {
     if (isDragging) {
       isDragging = false;
-      window.pywebview && window.pywebview.api.on_drag_end();
+      if (targetDx !== 0 || targetDy !== 0) {
+        window.pywebview && window.pywebview.api.move_window(targetDx, targetDy);
+        targetDx = 0;
+        targetDy = 0;
+      }
+      setTimeout(() => {
+        window.pywebview && window.pywebview.api.on_drag_end();
+      }, 40);
     }
   });
 </script>
@@ -1071,10 +1134,13 @@ HTML_TEMPLATE = """
 class MusicAPI:
     def __init__(self, win_holder):
         self.win_holder = win_holder
+        self.current_artist = "BABYMONSTER"
+        self.current_title = "DESERVE"
         self.history = [
-            {"id": "oC6brLXQe4I", "title": "BAYMONSTER - DESERVE MV", "artist": "YouTube"}
+            {"id": "oC6brLXQe4I", "title": "BABYMONSTER - DESERVE MV", "artist": "BABYMONSTER", "thumb": "https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg"}
         ]
         self.history_index = 0
+        self.played_ids = set(["oC6brLXQe4I"])
         self.ydl_opts_search = {
             'format': 'bestaudio/best',
             'noplaylist': True,
@@ -1113,9 +1179,7 @@ class MusicAPI:
     def on_drag_end(self):
         w = self.win_holder[0]
         if w:
-            b64 = get_wallpaper_slice_b64(w.x, w.y, VIS_W, VIS_H)
-            if b64:
-                w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
+            w.evaluate_js(f"window.syncPosition({w.x}, {w.y});")
 
     def search_songs(self, query):
         threading.Thread(target=self._search_async, args=(query,), daemon=True).start()
@@ -1153,15 +1217,59 @@ class MusicAPI:
             with yt_dlp.YoutubeDL(self.ydl_opts_stream) as ydl:
                 info = ydl.extract_info(url, download=False)
                 stream_url = info.get('url', '')
+                title = info.get('title', 'YouTube Music')
+                title = title.replace(' (Official Video)', '').replace(' [Official Audio]', '').replace(' (Official Music Video)', '')
+                artist = info.get('uploader') or info.get('channel') or 'YouTube'
+                thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
+                self.current_title = title
+                self.current_artist = artist
+                self.played_ids.add(vid_id)
+                w.evaluate_js(f"window.updateTrackInfo({json.dumps(title)}, {json.dumps(artist)}, {json.dumps(thumb)});")
                 w.evaluate_js(f"window.setStreamUrl({json.dumps(stream_url)});")
         except Exception:
             w.evaluate_js(f"window.setStreamUrl('');")
+
+    def auto_next(self):
+        """Automatically selects and plays the next related YouTube track (Autoplay Non-stop)."""
+        threading.Thread(target=self._auto_next_async, daemon=True).start()
+
+    def _auto_next_async(self):
+        w = self.win_holder[0]
+        if not w:
+            return
+        # Query YouTube for related tracks based on current artist/title
+        search_query = f"{self.current_artist} songs"
+        next_track = None
+        try:
+            with yt_dlp.YoutubeDL(self.ydl_opts_search) as ydl:
+                info = ydl.extract_info(f"ytsearch10:{search_query}", download=False)
+                for entry in info.get('entries', []):
+                    eid = entry.get('id')
+                    if eid and eid not in self.played_ids:
+                        next_track = entry
+                        break
+                # If all played, pick any
+                if not next_track and info.get('entries'):
+                    next_track = info['entries'][0]
+        except Exception:
+            pass
+
+        if next_track:
+            nid = next_track.get('id')
+            title = next_track.get('title', 'Next Track').replace(' (Official Video)', '').replace(' [Official Audio]', '')
+            artist = next_track.get('uploader') or self.current_artist
+            thumb = f"https://i.ytimg.com/vi/{nid}/hqdefault.jpg"
+            self.history.append({"id": nid, "title": title, "artist": artist, "thumb": thumb})
+            self.history_index = len(self.history) - 1
+            self.play_id(nid)
 
     def next_track(self):
         if self.history and self.history_index < len(self.history) - 1:
             self.history_index += 1
             s = self.history[self.history_index]
             self.play_id(s['id'])
+        else:
+            self.auto_next()
 
     def prev_track(self):
         if self.history and self.history_index > 0:
@@ -1171,7 +1279,7 @@ class MusicAPI:
 
 
 def wallpaper_watcher(api):
-    """Monitors Windows desktop wallpaper changes and instantly updates the visualizer blend."""
+    """Monitors Windows desktop wallpaper changes and updates full wallpaper image."""
     wp_path = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper")
     last_mtime = 0
     try:
@@ -1186,12 +1294,13 @@ def wallpaper_watcher(api):
                 mtime = os.path.getmtime(wp_path)
                 if mtime != last_mtime:
                     last_mtime = mtime
-                    # Wait briefly for Windows to complete saving wallpaper
-                    time.sleep(0.35)
+                    b64 = ""
+                    for _ in range(3):
+                        time.sleep(0.35)
+                        b64 = get_full_wallpaper_b64()
+                        if b64:
+                            break
                     w = api.win_holder[0]
-                    cur_x = w.x if w else POS_X
-                    cur_y = w.y if w else POS_Y
-                    b64 = get_wallpaper_slice_b64(cur_x, cur_y, VIS_W, VIS_H)
                     if b64 and w:
                         w.evaluate_js(f"window.updateLiveWallpaper({json.dumps(b64)});")
         except Exception:
@@ -1203,9 +1312,13 @@ def main():
     win_holder = [None]
     api = MusicAPI(win_holder)
 
-    # Sample current active desktop wallpaper across the visualizer width
-    wp_b64 = get_wallpaper_slice_b64(POS_X, POS_Y, VIS_W, VIS_H)
-    final_html = HTML_TEMPLATE.replace('__WALLPAPER_BACKDROP__', wp_b64)
+    # Load high-quality full resized wallpaper image
+    wp_b64 = get_full_wallpaper_b64()
+    final_html = (HTML_TEMPLATE
+                  .replace('__WALLPAPER_BACKDROP__', wp_b64)
+                  .replace('__SCREEN_H__', str(SCREEN_H))
+                  .replace('__POS_X__', str(POS_X))
+                  .replace('__POS_Y__', str(POS_Y)))
 
     # Desktop-wide visualizer window: on_top=False ensures it NEVER overlaps working apps
     w = webview.create_window(
