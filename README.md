@@ -9,6 +9,10 @@
 
 **A cinematic, audio-reactive desktop music visualizer with speech-reactive time-domain waveforms, real FFT frequency analysis, dynamic wallpaper color blending, and YouTube non-stop streaming.**
 
+<p align="center">
+  <img src="preview.gif" alt="Desktop Music Visualizer Preview" width="100%" style="border-radius: 10px;"/>
+</p>
+
 </div>
 
 ---
