@@ -833,6 +833,29 @@ HTML_TEMPLATE = """
     text-shadow: 0 0 6px var(--accent-glow);
   }
 
+  /* Official Tailwind Heroicons sizing utilities */
+  .h-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+  .h-icon-sm {
+    width: 12px;
+    height: 12px;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+  .h-icon-xs {
+    width: 11px;
+    height: 11px;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
   .modal-top-actions {
     display: flex;
     align-items: center;
@@ -850,7 +873,7 @@ HTML_TEMPLATE = """
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     transition: all 0.2s ease;
   }
 
@@ -871,7 +894,7 @@ HTML_TEMPLATE = """
     display: none;
     flex-direction: column;
     overflow: hidden;
-    margin-top: 6px;
+    margin-top: 5px;
   }
 
   .tab-content.active {
@@ -882,12 +905,25 @@ HTML_TEMPLATE = """
   .quick-add-bar {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 6px;
-    padding: 3px 6px;
-    margin-bottom: 6px;
+    padding: 2px 5px;
+    margin-bottom: 5px;
+  }
+
+  .quick-add-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .quick-add-icon {
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
   }
 
   .quick-add-input {
@@ -896,11 +932,94 @@ HTML_TEMPLATE = """
     border: none;
     outline: none;
     color: #ffffff;
-    font-size: 10px;
+    font-size: 9.5px;
+    min-width: 0;
   }
 
   .quick-add-input::placeholder {
     color: rgba(255, 255, 255, 0.35);
+  }
+
+  /* Now Playing Hero inside Queue */
+  .now-playing-hero {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 6px;
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid var(--accent-border);
+    border-radius: 7px;
+    box-shadow: 0 2px 8px var(--accent-glow-subtle);
+    flex-shrink: 0;
+  }
+
+  .now-playing-hero img {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .now-playing-hero-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .now-playing-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5px;
+    font-size: 7.5px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    margin-bottom: 1px;
+  }
+
+  /* Mini animated equalizer wave bars for live playing state */
+  .mini-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 7px;
+    width: 8px;
+  }
+
+  .mini-bar {
+    flex: 1;
+    background: var(--accent-primary);
+    border-radius: 1px;
+    animation: miniWave 0.75s ease-in-out infinite alternate;
+  }
+  .mini-bar:nth-child(1) { height: 35%; animation-delay: 0s; }
+  .mini-bar:nth-child(2) { height: 95%; animation-delay: 0.22s; }
+  .mini-bar:nth-child(3) { height: 55%; animation-delay: 0.44s; }
+
+  @keyframes miniWave {
+    0% { height: 25%; }
+    100% { height: 100%; }
+  }
+
+  .now-playing-hero-title {
+    font-size: 9px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+  }
+
+  .now-playing-hero-artist {
+    font-size: 7.5px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Queue View */
@@ -908,8 +1027,8 @@ HTML_TEMPLATE = """
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px 4px 4px;
-    font-size: 9px;
+    padding: 0 3px 3px 3px;
+    font-size: 8.5px;
     color: rgba(255, 255, 255, 0.65);
     font-weight: 600;
   }
@@ -919,8 +1038,8 @@ HTML_TEMPLATE = """
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding-right: 3px;
+    gap: 2.5px;
+    padding-right: 2px;
   }
 
   .queue-list::-webkit-scrollbar {
@@ -935,10 +1054,10 @@ HTML_TEMPLATE = """
   .queue-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 3px 6px;
+    gap: 5px;
+    padding: 2.5px 5px;
     border-radius: 5px;
-    background: rgba(255, 255, 255, 0.035);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -946,26 +1065,27 @@ HTML_TEMPLATE = """
 
   .queue-item:hover {
     background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 
-  .queue-item.now-playing {
+  .queue-item.active-item {
     background: var(--accent-glow-subtle);
     border-color: var(--accent-border);
-    box-shadow: 0 0 10px var(--accent-glow-subtle);
+    box-shadow: 0 0 8px var(--accent-glow-subtle);
   }
 
   .queue-item-idx {
     font-size: 8px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.45);
-    width: 14px;
+    color: rgba(255, 255, 255, 0.4);
+    width: 13px;
     text-align: center;
+    flex-shrink: 0;
   }
 
   .queue-item img {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     border-radius: 3px;
     object-fit: cover;
     flex-shrink: 0;
@@ -977,16 +1097,17 @@ HTML_TEMPLATE = """
   }
 
   .queue-item-title {
-    font-size: 9.5px;
+    font-size: 8.5px;
     font-weight: 600;
     color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.15;
   }
 
   .queue-item-artist {
-    font-size: 8px;
+    font-size: 7.5px;
     color: #94a3b8;
     white-space: nowrap;
     overflow: hidden;
@@ -996,8 +1117,35 @@ HTML_TEMPLATE = """
   .queue-actions {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     flex-shrink: 0;
+  }
+
+  .btn-icon-sm {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.8);
+    width: 17px;
+    height: 17px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-icon-sm:hover {
+    background: var(--accent-primary);
+    color: #0b1118;
+    border-color: var(--accent-primary);
+  }
+
+  .btn-icon-sm.btn-del:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
   }
 
   .btn-sm-action {
@@ -1007,12 +1155,12 @@ HTML_TEMPLATE = """
     color: rgba(255, 255, 255, 0.85);
     font-size: 8px;
     font-weight: 700;
-    padding: 2px 5px;
+    padding: 2px 6px;
     cursor: pointer;
     transition: all 0.15s ease;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 3px;
   }
 
   .btn-sm-action:hover {
@@ -1027,6 +1175,31 @@ HTML_TEMPLATE = """
     color: #ffffff;
     border-color: #ef4444;
     box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  }
+
+  /* Empty state */
+  .queue-empty-state {
+    text-align: center;
+    padding: 12px 10px;
+    color: rgba(255, 255, 255, 0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .queue-empty-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.45);
+    margin-bottom: 2px;
   }
 
   /* Search Bar & Results */
@@ -1267,10 +1440,10 @@ HTML_TEMPLATE = """
             <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
           </button>
           <button class="mini-btn" id="btn-repeat" title="Repeat: Off">
-            <svg id="repeat-icon" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            <svg id="repeat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
           </button>
           <button class="mini-btn" id="btn-playlist" title="Queue & Playlist" style="position:relative;">
-            <svg viewBox="0 0 24 24"><path d="M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
             <span class="queue-badge" id="queue-badge" style="display:none;">0</span>
           </button>
         </div>
@@ -1285,17 +1458,22 @@ HTML_TEMPLATE = """
       <div class="modal-top-bar">
         <div class="modal-tabs">
           <button class="modal-tab-btn active" id="tab-queue-btn">
-            <span>📑 Queue</span>
+            <svg class="h-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
+            <span>Queue</span>
             <span id="queue-tab-count">(0)</span>
           </button>
           <button class="modal-tab-btn" id="tab-search-btn">
-            <span>🔍 Search & Add</span>
+            <svg class="h-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+            <span>Search & Add</span>
           </button>
         </div>
         <div class="modal-top-actions">
-          <button class="loop-pill" id="btn-modal-loop" title="Toggle Looping Playlist">🔁 Loop Playlist: OFF</button>
+          <button class="loop-pill" id="btn-modal-loop" title="Toggle Looping Playlist">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+            <span id="modal-loop-text">Loop: OFF</span>
+          </button>
           <button class="icon-btn" id="btn-modal-close" title="Close">
-            <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M6 6l12 12" /></svg>
           </button>
         </div>
       </div>
@@ -1303,13 +1481,26 @@ HTML_TEMPLATE = """
       <!-- Tab 1: Queue / Playlist -->
       <div class="tab-content active" id="view-queue">
         <div class="quick-add-bar">
-          <input type="text" class="quick-add-input" id="quick-add-input" placeholder="Paste YouTube link or song name to add...">
-          <button class="btn-sm-action" id="btn-quick-next" title="Add as next to play">⏭️ Next</button>
-          <button class="btn-sm-action" id="btn-quick-queue" title="Add to end of queue">➕ Queue</button>
+          <div class="quick-add-input-wrap">
+            <svg class="h-icon-xs quick-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+            <input type="text" class="quick-add-input" id="quick-add-input" placeholder="Paste link or song name...">
+          </div>
+          <button class="btn-sm-action" id="btn-quick-next" title="Add as next to play">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" /></svg>
+            <span>Next</span>
+          </button>
+          <button class="btn-sm-action" id="btn-quick-queue" title="Add to end of queue">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            <span>Queue</span>
+          </button>
         </div>
+        <div id="queue-now-playing-container"></div>
         <div class="queue-header-row">
-          <span id="queue-count-display">Upcoming in Queue (0 tracks)</span>
-          <button class="btn-sm-action btn-sm-del" id="btn-clear-queue" title="Clear all upcoming tracks">🗑️ Clear</button>
+          <span id="queue-count-display">Upcoming in Queue (0)</span>
+          <button class="btn-sm-action btn-sm-del" id="btn-clear-queue" title="Clear all upcoming tracks">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+            <span>Clear</span>
+          </button>
         </div>
         <div class="queue-list" id="queue-list">
           <!-- Rendered via JS -->
@@ -1355,10 +1546,12 @@ HTML_TEMPLATE = """
   const playlistModal = document.getElementById('playlist-modal');
   const btnModalClose = document.getElementById('btn-modal-close');
   const btnModalLoop = document.getElementById('btn-modal-loop');
+  const modalLoopText = document.getElementById('modal-loop-text');
   const tabQueueBtn = document.getElementById('tab-queue-btn');
   const tabSearchBtn = document.getElementById('tab-search-btn');
   const viewQueue = document.getElementById('view-queue');
   const viewSearch = document.getElementById('view-search');
+  const queueNowPlayingContainer = document.getElementById('queue-now-playing-container');
   const queueList = document.getElementById('queue-list');
   const queueCountDisplay = document.getElementById('queue-count-display');
   const queueTabCount = document.getElementById('queue-tab-count');
@@ -1754,22 +1947,22 @@ HTML_TEMPLATE = """
       btnRepeat.classList.add('active');
       btnRepeat.title = 'Loop Playlist: ON (Continuous Loop)';
       btnModalLoop.classList.add('active');
-      btnModalLoop.textContent = '🔁 Loop Playlist: ON';
-      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>';
+      if (modalLoopText) modalLoopText.textContent = 'Loop: ON';
+      repeatIcon.innerHTML = '<path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />';
       audio.loop = false;
     } else if (loopMode === 'track') {
       btnRepeat.classList.add('active');
       btnRepeat.title = 'Repeat Current Track';
       btnModalLoop.classList.remove('active');
-      btnModalLoop.textContent = '🔁 Loop Playlist: OFF';
-      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/><text x="12" y="14" font-size="7.5" font-weight="900" text-anchor="middle" fill="currentColor">1</text>';
+      if (modalLoopText) modalLoopText.textContent = 'Loop: OFF';
+      repeatIcon.innerHTML = '<path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /><circle cx="12" cy="12" r="2.8" fill="currentColor" stroke="none" />';
       audio.loop = true;
     } else {
       btnRepeat.classList.remove('active');
       btnRepeat.title = 'Repeat: Off';
       btnModalLoop.classList.remove('active');
-      btnModalLoop.textContent = '🔁 Loop Playlist: OFF';
-      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>';
+      if (modalLoopText) modalLoopText.textContent = 'Loop: OFF';
+      repeatIcon.innerHTML = '<path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />';
       audio.loop = false;
     }
   }
@@ -1777,10 +1970,10 @@ HTML_TEMPLATE = """
   function cycleRepeatMode() {
     if (loopMode === 'off') {
       loopMode = 'playlist';
-      showToast('🔁 Loop Playlist: ON');
+      showToast('Loop Playlist: ON');
     } else if (loopMode === 'playlist') {
       loopMode = 'track';
-      showToast('🔂 Repeat Current Track');
+      showToast('Repeat Current Track');
     } else {
       loopMode = 'off';
       showToast('Repeat: OFF');
@@ -1793,10 +1986,10 @@ HTML_TEMPLATE = """
   btnModalLoop.addEventListener('click', () => {
     if (loopMode === 'playlist') {
       loopMode = 'off';
-      showToast('🔁 Loop Playlist: OFF');
+      showToast('Loop Playlist: OFF');
     } else {
       loopMode = 'playlist';
-      showToast('🔁 Loop Playlist: ON');
+      showToast('Loop Playlist: ON');
     }
     updateRepeatUI();
   });
@@ -1804,7 +1997,7 @@ HTML_TEMPLATE = """
   btnShuffle.addEventListener('click', () => {
     isShuffle = !isShuffle;
     btnShuffle.classList.toggle('active', isShuffle);
-    showToast(isShuffle ? '🔀 Shuffle: ON' : '🔀 Shuffle: OFF');
+    showToast(isShuffle ? 'Shuffle: ON' : 'Shuffle: OFF');
   });
 
   // Queue & Playlist Management
@@ -1820,44 +2013,91 @@ HTML_TEMPLATE = """
   }
 
   function renderQueue() {
-    queueList.innerHTML = '';
-    if (queue.length === 0) {
-      queueList.innerHTML = `
-        <div style="text-align:center;padding:22px 12px;color:rgba(255,255,255,0.45);font-size:10px;">
-          <div style="font-size:16px;margin-bottom:4px;">📑</div>
-          Your playlist queue is empty.<br>
-          Search songs in <b>Search & Add</b> or paste links above to build your playlist!
+    updateQueueBadge();
+
+    // 1. Render Dedicated Now Playing Hero Card inside Queue View
+    if (currentQueueIndex >= 0 && currentQueueIndex < queue.length) {
+      const curItem = queue[currentQueueIndex];
+      queueNowPlayingContainer.innerHTML = `
+        <div class="now-playing-hero">
+          <img src="${curItem.thumb || 'https://i.ytimg.com/vi/' + curItem.id + '/hqdefault.jpg'}" alt="">
+          <div class="now-playing-hero-info">
+            <div class="now-playing-badge">
+              <span class="mini-bars">
+                <span class="mini-bar"></span>
+                <span class="mini-bar"></span>
+                <span class="mini-bar"></span>
+              </span>
+              Now Playing
+            </div>
+            <div class="now-playing-hero-title">${curItem.title}</div>
+            <div class="now-playing-hero-artist">${curItem.artist || 'YouTube'}</div>
+          </div>
         </div>
       `;
-      queueCountDisplay.textContent = 'Upcoming in Queue (0 tracks)';
-      updateQueueBadge();
+    } else {
+      queueNowPlayingContainer.innerHTML = '';
+    }
+
+    // 2. Render Queue List
+    queueList.innerHTML = '';
+
+    if (queue.length === 0) {
+      queueCountDisplay.textContent = 'Upcoming in Queue (0)';
+      queueList.innerHTML = `
+        <div class="queue-empty-state">
+          <div class="queue-empty-icon">
+            <svg class="h-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
+          </div>
+          <div style="font-size:9.5px;font-weight:700;color:#ffffff;">Queue is Empty</div>
+          <div style="font-size:8px;color:#94a3b8;line-height:1.3;">Add songs using Quick Add or Search</div>
+          <button class="btn-sm-action" id="btn-empty-search" style="margin-top:4px;padding:2px 8px;">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+            <span>Search Songs</span>
+          </button>
+        </div>
+      `;
+      const btnEmptySearch = document.getElementById('btn-empty-search');
+      if (btnEmptySearch) {
+        btnEmptySearch.addEventListener('click', () => switchTab('search'));
+      }
       return;
     }
 
     const upcoming = Math.max(0, queue.length - 1);
     queueCountDisplay.textContent = `Upcoming in Queue (${upcoming} track${upcoming !== 1 ? 's' : ''})`;
-    updateQueueBadge();
 
     queue.forEach((item, idx) => {
       const isCur = (idx === currentQueueIndex);
       const div = document.createElement('div');
-      div.className = `queue-item ${isCur ? 'now-playing' : ''}`;
+      div.className = `queue-item ${isCur ? 'active-item' : ''}`;
       
       div.innerHTML = `
         <div class="queue-item-idx">${idx + 1}</div>
         <img src="${item.thumb || 'https://i.ytimg.com/vi/' + item.id + '/hqdefault.jpg'}" alt="">
         <div class="queue-item-info">
-          <div class="queue-item-title">
-            ${item.title}
-            ${isCur ? '<span class="now-playing-tag">PLAYING</span>' : ''}
-          </div>
+          <div class="queue-item-title">${item.title}</div>
           <div class="queue-item-artist">${item.artist || 'YouTube'}</div>
         </div>
         <div class="queue-actions">
-          ${!isCur ? `<button class="btn-sm-action" title="Play Now" data-act="play" data-idx="${idx}">▶</button>` : ''}
-          ${idx > 0 ? `<button class="btn-sm-action" title="Move Up" data-act="up" data-idx="${idx}">↑</button>` : ''}
-          ${idx < queue.length - 1 ? `<button class="btn-sm-action" title="Move Down" data-act="down" data-idx="${idx}">↓</button>` : ''}
-          <button class="btn-sm-action btn-sm-del" title="Remove from queue" data-act="del" data-idx="${idx}">✕</button>
+          ${!isCur ? `
+            <button class="btn-icon-sm" title="Play Now" data-act="play" data-idx="${idx}">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" /></svg>
+            </button>
+          ` : ''}
+          ${idx > 0 ? `
+            <button class="btn-icon-sm" title="Move Up" data-act="up" data-idx="${idx}">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>
+            </button>
+          ` : ''}
+          ${idx < queue.length - 1 ? `
+            <button class="btn-icon-sm" title="Move Down" data-act="down" data-idx="${idx}">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+          ` : ''}
+          <button class="btn-icon-sm btn-del" title="Remove from queue" data-act="del" data-idx="${idx}">
+            <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
         </div>
       `;
 
@@ -1889,10 +2129,10 @@ HTML_TEMPLATE = """
     if (playNext) {
       const insertIdx = currentQueueIndex + 1;
       queue.splice(insertIdx, 0, item);
-      showToast(`⏭️ Play Next: ${item.title}`);
+      showToast(`Play Next: ${item.title}`);
     } else {
       queue.push(item);
-      showToast(`➕ Added to Queue: ${item.title}`);
+      showToast(`Added to Queue: ${item.title}`);
     }
     if (currentQueueIndex === -1) {
       currentQueueIndex = 0;
@@ -1978,7 +2218,7 @@ HTML_TEMPLATE = """
       } else if (loopMode === 'playlist') {
         // Continuous loop of custom playlist
         playQueueItem(0);
-        showToast('🔁 Looping Playlist from start');
+        showToast('Looping Playlist from start');
         return;
       }
     }
@@ -2180,9 +2420,18 @@ HTML_TEMPLATE = """
             <div class="search-item-artist">${item.artist || 'YouTube'}</div>
           </div>
           <div class="search-item-btns">
-            <button class="btn-sm-action" data-act="play" title="Play Immediately">▶ Play</button>
-            <button class="btn-sm-action" data-act="next" title="Play Next after current song">⏭️ Next</button>
-            <button class="btn-sm-action" data-act="queue" title="Add to Queue">➕ Queue</button>
+            <button class="btn-sm-action" data-act="play" title="Play Immediately">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" /></svg>
+              <span>Play</span>
+            </button>
+            <button class="btn-sm-action" data-act="next" title="Play Next after current song">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" /></svg>
+              <span>Next</span>
+            </button>
+            <button class="btn-sm-action" data-act="queue" title="Add to Queue">
+              <svg class="h-icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              <span>Queue</span>
+            </button>
           </div>
         `;
         div.addEventListener('click', (e) => {
@@ -2192,7 +2441,7 @@ HTML_TEMPLATE = """
             const insertIdx = currentQueueIndex + 1;
             queue.splice(insertIdx, 0, item);
             playQueueItem(insertIdx);
-            showToast(`▶ Now Playing: ${item.title}`);
+            showToast(`Now Playing: ${item.title}`);
           } else if (act === 'next') {
             addToQueue(item, true);
           } else if (act === 'queue') {
