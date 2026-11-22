@@ -1634,17 +1634,23 @@ HTML_TEMPLATE = """
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 
-  // Floating Particles
+  // Floating Aesthetic Particles & Audio Sparkles
   const particles = [];
-  for (let p = 0; p < 45; p++) {
+  for (let p = 0; p < 60; p++) {
     particles.push({
       x: Math.random() * window.innerWidth,
-      y: 70 + Math.random() * 110,
-      radius: Math.random() * 2 + 1,
-      speedX: Math.random() * 0.8 + 0.3,
-      alpha: Math.random() * 0.6 + 0.2
+      y: 60 + Math.random() * 125,
+      radius: Math.random() * 2.2 + 0.8,
+      speedX: Math.random() * 0.7 + 0.25,
+      speedY: (Math.random() - 0.5) * 0.25,
+      alpha: Math.random() * 0.65 + 0.25,
+      sparklePhase: Math.random() * Math.PI * 2
     });
   }
+
+  // Real-time Peak-Meter Gravity Arrays for Equalizer Bars
+  const peakLevelsLeft = new Array(14).fill(0);
+  const peakLevelsRight = new Array(20).fill(0);
 
   // REAL-TIME AUDIO-REACTIVE DATA & INTERPOLATION (via Native WASAPI Loopback WebSocket)
   let audioData = {
@@ -1702,6 +1708,18 @@ HTML_TEMPLATE = """
   }
   connectAudioWS();
 
+  // Helper: Traces a silky smooth continuous spline through points using midpoint quadratic curves
+  function traceSmoothSpline(pts) {
+    if (pts.length < 2) return;
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  }
+
   // Desktop-Wide Flowing Ribbon Waves & Atmospheric Spectrum
   let wavePhase = 0;
   function renderDesktopWaves() {
@@ -1742,144 +1760,319 @@ HTML_TEMPLATE = """
     const pColor = `rgb(${pR}, ${pG}, ${pB})`;
     const sColor = `rgb(${sR}, ${sG}, ${sB})`;
 
-    // Baseline calm breathing phase
-    wavePhase += 0.012 + smoothVol * 0.038;
+    // Dynamic wave phase (calm breathing speed when quiet, energetic flow when playing)
+    wavePhase += 0.012 + smoothVol * 0.042;
 
     const cardLeft = (w - 590) / 2;
     const cardRight = cardLeft + 590;
 
-    // --- ATMOSPHERIC SPECTRUM BARS (Driven 100% by live FFT frequency data) ---
-    // Left side: Bass & Mid frequencies (bars 0 to 11)
+    // --- LAYER 0: ATMOSPHERIC AMBIENT WALLPAPER GLOW ---
+    // Emits a soft, diffused celestial underglow that breathes with the bass and overall volume
+    if (smoothVol > 0.015 || isPlaying) {
+      const glowRadius = Math.min(w * 0.5, 320 + smoothBass * 220);
+      const glowGrad = ctx.createRadialGradient(w / 2, h * 0.76, 30, w / 2, h * 0.76, glowRadius);
+      const glowAlpha = Math.min(0.35, 0.06 + smoothVol * 0.22 + smoothBass * 0.14);
+      glowGrad.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${glowAlpha})`);
+      glowGrad.addColorStop(0.45, `rgba(${sR}, ${sG}, ${sB}, ${glowAlpha * 0.5})`);
+      glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // --- LAYER 1: ATMOSPHERIC STUDIO EQUALIZER BARS (With Floating Peak-Hold Beads) ---
+    // Left side: Sub-Bass, 808s, & Low-Mids (bars 0 to 11)
     let bIdx = 0;
     for (let lx = cardLeft - 180; lx < cardLeft - 20; lx += 11) {
       const barVal = smoothBars[bIdx % 12] || 0;
       const dist = 1 - Math.abs(lx - (cardLeft - 100)) / 90;
-      const hBar = Math.max(3, barVal * 34 * dist + (smoothVol > 0.02 ? 2 : 0));
-      ctx.fillStyle = `rgba(${pR}, ${pG}, ${pB}, ${0.28 + barVal * 0.65})`;
+      const hBar = Math.max(3.5, barVal * 36 * dist + (smoothVol > 0.02 ? 2.5 : 0));
+      
+      // Update floating peak-meter bead gravity
+      if (hBar >= peakLevelsLeft[bIdx]) {
+        peakLevelsLeft[bIdx] = hBar;
+      } else {
+        peakLevelsLeft[bIdx] = Math.max(3.5, peakLevelsLeft[bIdx] - 0.75);
+      }
+
+      // Rounded pill bar with dual-accent gradient
+      const barGrad = ctx.createLinearGradient(0, h - 35, 0, h - 35 - hBar);
+      barGrad.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${0.28 + barVal * 0.55})`);
+      barGrad.addColorStop(1, `rgba(${sR}, ${sG}, ${sB}, ${0.75 + barVal * 0.25})`);
+      ctx.fillStyle = barGrad;
       ctx.shadowBlur = 8 + barVal * 14;
       ctx.shadowColor = pColor;
-      ctx.fillRect(lx, h - 35 - hBar, 3.5, hBar);
+      
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(lx, h - 35 - hBar, 3.5, hBar, [2, 2, 0, 0]);
+      } else {
+        ctx.rect(lx, h - 35 - hBar, 3.5, hBar);
+      }
+      ctx.fill();
+
+      // Floating luminous peak bead
+      const peakY = h - 35 - peakLevelsLeft[bIdx] - 2.5;
+      ctx.beginPath();
+      ctx.arc(lx + 1.75, peakY, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = sColor;
+      ctx.fill();
+
       bIdx++;
     }
 
-    // Right side: Vocal Highs & Treble (bars 16 to 28)
+    // Right side: Vocals, High-Mids & Treble (bars 16 to 29)
     bIdx = 16;
     for (let rx = cardRight + 20; rx < cardRight + 180; rx += 11) {
       const barVal = smoothBars[bIdx % 34] || 0;
       const dist = 1 - Math.abs(rx - (cardRight + 100)) / 90;
-      const hBar = Math.max(3, barVal * 30 * dist + (smoothVol > 0.02 ? 2 : 0));
-      ctx.fillStyle = `rgba(${sR}, ${sG}, ${sB}, ${0.28 + barVal * 0.65})`;
+      const hBar = Math.max(3.5, barVal * 32 * dist + (smoothVol > 0.02 ? 2.5 : 0));
+
+      const rIdx = bIdx - 16;
+      if (hBar >= peakLevelsRight[rIdx]) {
+        peakLevelsRight[rIdx] = hBar;
+      } else {
+        peakLevelsRight[rIdx] = Math.max(3.5, peakLevelsRight[rIdx] - 0.75);
+      }
+
+      const barGrad = ctx.createLinearGradient(0, h - 35, 0, h - 35 - hBar);
+      barGrad.addColorStop(0, `rgba(${sR}, ${sG}, ${sB}, ${0.28 + barVal * 0.55})`);
+      barGrad.addColorStop(1, `rgba(${pR}, ${pG}, ${pB}, ${0.75 + barVal * 0.25})`);
+      ctx.fillStyle = barGrad;
       ctx.shadowBlur = 8 + barVal * 14;
       ctx.shadowColor = sColor;
-      ctx.fillRect(rx, h - 35 - hBar, 3.5, hBar);
+
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(rx, h - 35 - hBar, 3.5, hBar, [2, 2, 0, 0]);
+      } else {
+        ctx.rect(rx, h - 35 - hBar, 3.5, hBar);
+      }
+      ctx.fill();
+
+      // Floating luminous peak bead
+      const peakY = h - 35 - peakLevelsRight[rIdx] - 2.5;
+      ctx.beginPath();
+      ctx.arc(rx + 1.75, peakY, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = pColor;
+      ctx.fill();
+
       bIdx++;
     }
 
-    // --- WAVE 1: VOCAL SPEECH & SINGING ENERGY RIBBON ---
-    // Reacts dynamically to real time-domain vibrations, vocal formants, syllables and words!
-    const vocalAmp = (smoothVocalMid * 44.0 + smoothVocalHigh * 32.0 + smoothVol * 14.0);
-    const speechBaseY = h * 0.68;
+    // Horizontal Screen Gradient for all flowing ribbons (luminous white crest in center, neon wings)
+    const ribbonGrad = ctx.createLinearGradient(0, 0, w, 0);
+    ribbonGrad.addColorStop(0.0, `rgba(${pR}, ${pG}, ${pB}, 0.25)`);
+    ribbonGrad.addColorStop(0.25, `rgba(${pR}, ${pG}, ${pB}, 0.85)`);
+    ribbonGrad.addColorStop(0.5, '#ffffff');
+    ribbonGrad.addColorStop(0.75, `rgba(${sR}, ${sG}, ${sB}, 0.85)`);
+    ribbonGrad.addColorStop(1.0, `rgba(${sR}, ${sG}, ${sB}, 0.25)`);
 
-    ctx.beginPath();
-    ctx.moveTo(0, speechBaseY);
-    for (let x = 0; x <= w; x += 5) {
+    // --- LAYER 2: SUB-BASS & 808 TECTONIC PULSE SWELL ---
+    // Deep rolling fluid undercurrent that expands powerfully during 808s and beat drops
+    const bassAmp = (smoothBass * 42.0 + smoothBeat * 28.0 + 3.5);
+    const bassBaseY = h * 0.77;
+    const bassPts = [];
+    const stepBass = Math.max(12, Math.floor(w / 55));
+    for (let x = 0; x <= w + stepBass; x += stepBass) {
       const normX = x / w;
-      const waveIdx = Math.min(63, Math.floor(normX * 64));
-      const nextIdx = Math.min(63, waveIdx + 1);
-      const frac = (normX * 64) - waveIdx;
-      const rawWave = smoothWave[waveIdx] * (1 - frac) + smoothWave[nextIdx] * frac;
-
-      // Vocal speech modulation: combines live oscillatory voice vibrations + harmonic traveling wave
-      const voiceOscillation = rawWave * vocalAmp * 1.6;
-      const flowingEnergy = Math.sin(normX * 9.0 - wavePhase * 1.5) * (vocalAmp * 0.35 + 4.0);
-      const y = speechBaseY + voiceOscillation + flowingEnergy;
-      ctx.lineTo(x, y);
+      const swell = Math.sin(normX * 4.2 - wavePhase * 1.1) * bassAmp;
+      const octave = Math.cos(normX * 9.5 + wavePhase * 0.7) * (bassAmp * 0.32);
+      const shockwave = Math.sin(normX * 13.0 - wavePhase * 1.8) * (smoothBeat * 14.0);
+      bassPts.push({ x: x, y: bassBaseY + swell + octave + shockwave });
     }
 
-    // Ambient glow translucent fill under vocal wave
+    // Volumetric gradient underfill for bass
+    ctx.beginPath();
+    traceSmoothSpline(bassPts);
     ctx.lineTo(w, h);
     ctx.lineTo(0, h);
     ctx.closePath();
-    const grad1 = ctx.createLinearGradient(0, speechBaseY - 20, 0, h);
-    const fillAlpha = Math.min(0.45, 0.08 + smoothVol * 0.28 + smoothBass * 0.2);
-    grad1.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${fillAlpha})`);
-    grad1.addColorStop(0.5, `rgba(15, 23, 42, ${fillAlpha * 0.7})`);
-    grad1.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
-    ctx.fillStyle = grad1;
-    ctx.shadowBlur = 16 + smoothVocalMid * 20;
-    ctx.shadowColor = `rgba(${pR}, ${pG}, ${pB}, 0.75)`;
+    const bassFillGrad = ctx.createLinearGradient(0, bassBaseY - 30, 0, h);
+    const bassAlpha = Math.min(0.42, 0.06 + smoothVol * 0.26 + smoothBass * 0.22);
+    bassFillGrad.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${bassAlpha})`);
+    bassFillGrad.addColorStop(0.5, `rgba(10, 18, 30, ${bassAlpha * 0.65})`);
+    bassFillGrad.addColorStop(1, 'rgba(10, 18, 30, 0.0)');
+    ctx.fillStyle = bassFillGrad;
+    ctx.shadowBlur = 18 + smoothBass * 22;
+    ctx.shadowColor = `rgba(${pR}, ${pG}, ${pB}, 0.7)`;
     ctx.fill();
 
-    // Sharp luminous vocal stroke
+    // Smooth bass stroke
     ctx.beginPath();
-    ctx.moveTo(0, speechBaseY);
-    for (let x = 0; x <= w; x += 5) {
+    traceSmoothSpline(bassPts);
+    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(0.9, 0.4 + smoothBass * 0.55)})`;
+    ctx.lineWidth = 1.6 + smoothBeat * 2.4;
+    ctx.shadowBlur = 12 + smoothBass * 20;
+    ctx.shadowColor = pColor;
+    ctx.stroke();
+
+    // --- LAYER 3: INTERWOVEN COUNTER-HARMONIC SILK RIBBON ---
+    // Braids dynamically over and under the vocal line with geometric fluidity
+    const harmAmp = (smoothTreble * 22.0 + smoothVocalMid * 20.0 + 3.0);
+    const harmBaseY = h * 0.72;
+    const harmPts = [];
+    const stepHarm = Math.max(10, Math.floor(w / 65));
+    for (let x = 0; x <= w + stepHarm; x += stepHarm) {
+      const normX = x / w;
+      const counterWeave = Math.cos(normX * 8.0 + wavePhase * 1.6) * (harmAmp * 0.9);
+      const subRipples = Math.sin(normX * 18.0 - wavePhase * 2.2) * (harmAmp * 0.38);
+      harmPts.push({ x: x, y: harmBaseY + counterWeave + subRipples });
+    }
+
+    ctx.beginPath();
+    traceSmoothSpline(harmPts);
+    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(0.75, 0.3 + smoothVocalMid * 0.5)})`;
+    ctx.lineWidth = 1.2 + smoothVocalHigh * 1.2;
+    ctx.shadowBlur = 10 + smoothVocalMid * 16;
+    ctx.shadowColor = sColor;
+    ctx.stroke();
+
+    // --- LAYER 4: PRIMARY VOCAL SPEECH & SINGING ENERGY RIBBON ---
+    // Reacts dynamically to real time-domain vibrations, vocal formants, syllables, and words!
+    const vocalAmp = (smoothVocalMid * 48.0 + smoothVocalHigh * 36.0 + smoothVol * 16.0);
+    const speechBaseY = h * 0.67;
+    const vocalPts = [];
+    const peakCrests = [];
+    const stepVocal = Math.max(8, Math.floor(w / 90));
+
+    for (let x = 0; x <= w + stepVocal; x += stepVocal) {
       const normX = x / w;
       const waveIdx = Math.min(63, Math.floor(normX * 64));
       const nextIdx = Math.min(63, waveIdx + 1);
       const frac = (normX * 64) - waveIdx;
       const rawWave = smoothWave[waveIdx] * (1 - frac) + smoothWave[nextIdx] * frac;
-      const voiceOscillation = rawWave * vocalAmp * 1.6;
-      const flowingEnergy = Math.sin(normX * 9.0 - wavePhase * 1.5) * (vocalAmp * 0.35 + 4.0);
-      const y = speechBaseY + voiceOscillation + flowingEnergy;
-      ctx.lineTo(x, y);
+
+      // Real time-domain voice oscillations + harmonic traveling wave + vocal flutter
+      const voiceOscillation = rawWave * vocalAmp * 1.65;
+      const flowingEnergy = Math.sin(normX * 8.5 - wavePhase * 1.4) * (vocalAmp * 0.32 + 3.8);
+      const vocalFlutter = Math.sin(normX * 24.0 + wavePhase * 3.2) * (smoothVocalHigh * 5.5);
+      const y = speechBaseY + voiceOscillation + flowingEnergy + vocalFlutter;
+      vocalPts.push({ x: x, y: y });
+
+      // Detect notable peaks for crest light beads
+      if (vocalPts.length > 2) {
+        const prev = vocalPts[vocalPts.length - 2];
+        const prevPrev = vocalPts[vocalPts.length - 3];
+        if (prev.y < prevPrev.y && prev.y < y && (speechBaseY - prev.y) > 12) {
+          peakCrests.push({ x: prev.x, y: prev.y, energy: (speechBaseY - prev.y) });
+        }
+      }
     }
-    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(1.0, 0.45 + smoothVocalMid * 0.55)})`;
-    ctx.lineWidth = 1.8 + smoothVocalHigh * 1.8;
+
+    // Luminous volumetric ambient fill under vocal line
+    ctx.beginPath();
+    traceSmoothSpline(vocalPts);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    const vocalFillGrad = ctx.createLinearGradient(0, speechBaseY - 25, 0, h);
+    const vFillAlpha = Math.min(0.48, 0.08 + smoothVol * 0.30 + smoothBass * 0.22);
+    vocalFillGrad.addColorStop(0, `rgba(${pR}, ${pG}, ${pB}, ${vFillAlpha})`);
+    vocalFillGrad.addColorStop(0.4, `rgba(${sR}, ${sG}, ${sB}, ${vFillAlpha * 0.55})`);
+    vocalFillGrad.addColorStop(1, 'rgba(10, 18, 30, 0.0)');
+    ctx.fillStyle = vocalFillGrad;
+    ctx.shadowBlur = 20 + smoothVocalMid * 24;
+    ctx.shadowColor = `rgba(${pR}, ${pG}, ${pB}, 0.8)`;
+    ctx.fill();
+
+    // Dual-pass Neon Render for Vocal Ribbon:
+    // Pass 1: Outer soft luminous aura
+    ctx.beginPath();
+    traceSmoothSpline(vocalPts);
+    ctx.strokeStyle = `rgba(${pR}, ${pG}, ${pB}, ${Math.min(0.55, 0.2 + smoothVocalMid * 0.35)})`;
+    ctx.lineWidth = 4.2 + smoothVocalHigh * 2.2;
+    ctx.shadowBlur = 22 + smoothVocalMid * 26;
+    ctx.shadowColor = pColor;
+    ctx.stroke();
+
+    // Pass 2: Razor-sharp fiber-optic core with horizontal gradient & luminous highlights
+    ctx.beginPath();
+    traceSmoothSpline(vocalPts);
+    ctx.strokeStyle = ribbonGrad;
+    ctx.lineWidth = 1.8 + smoothVocalHigh * 1.4;
     ctx.shadowBlur = 10 + smoothVocalMid * 18;
-    ctx.shadowColor = sColor;
+    ctx.shadowColor = '#ffffff';
     ctx.stroke();
 
-    // --- WAVE 2: SUB-BASS & BEAT DROP PULSE RIBBON ---
-    // Deep heavy undulations that swell and pulse powerfully on 808s and bass kicks
-    const bassAmp = (smoothBass * 38.0 + smoothBeat * 26.0 + 3.0);
-    const bassBaseY = h * 0.77;
-
-    ctx.beginPath();
-    ctx.moveTo(0, bassBaseY);
-    for (let x = 0; x <= w; x += 6) {
-      const normX = x / w;
-      const bassSwell = Math.cos(normX * 5.0 - wavePhase * 1.2) * bassAmp;
-      const subHarmonic = Math.sin(normX * 11.0 + wavePhase * 0.8) * (bassAmp * 0.28);
-      const y = bassBaseY + bassSwell + subHarmonic;
-      ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(0.95, 0.45 + smoothBass * 0.55)})`;
-    ctx.lineWidth = 1.6 + smoothBeat * 2.2;
-    ctx.shadowBlur = 10 + smoothBass * 18;
-    ctx.shadowColor = pColor;
-    ctx.stroke();
-
-    // --- WAVE 3: TREBLE & BRILLIANCE SHIMMER RIBBON ---
-    // Reacts to crisp hi-hats, vocal sibilance ("s", "sh"), and high-end acoustic air
-    const trebleAmp = (smoothTreble * 19.0 + smoothVocalHigh * 15.0 + 2.5);
-    const trebleBaseY = h * 0.85;
-
-    ctx.beginPath();
-    ctx.moveTo(0, trebleBaseY);
-    for (let x = 0; x <= w; x += 6) {
-      const normX = x / w;
-      const shimmer = Math.sin(normX * 16.0 + wavePhase * 2.2) * (trebleAmp * 0.6) + Math.sin(normX * 32.0 - wavePhase * 3.0) * (trebleAmp * 0.35);
-      const y = trebleBaseY + shimmer;
-      ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = `rgba(${pR}, ${pG}, ${pB}, ${Math.min(0.85, 0.25 + smoothTreble * 0.65)})`;
-    ctx.lineWidth = 1.2 + smoothTreble * 1.2;
-    ctx.shadowBlur = 6 + smoothTreble * 12;
-    ctx.shadowColor = pColor;
-    ctx.stroke();
-
-    // --- DRIFTING PARTICLES (Speed & brightness react to live audio volume & beats) ---
-    particles.forEach(p => {
-      p.x += p.speedX * (0.5 + smoothVol * 2.5 + smoothBeat * 1.8);
-      if (p.x > w) p.x = 0;
+    // Wave Crest Light Beads (Magical glowing stardust orbs on voice peaks)
+    peakCrests.forEach(crest => {
+      const beadRadius = Math.min(4.5, 1.8 + (crest.energy / 35) * 2.5 + smoothBeat * 1.5);
       ctx.beginPath();
-      const pY = p.y + Math.sin(p.x * 0.01 + wavePhase) * (6 + smoothBass * 12);
-      ctx.arc(p.x, pY, p.radius + smoothBeat * 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${sR}, ${sG}, ${sB}, ${Math.min(1.0, p.alpha + smoothVol * 0.5)})`;
-      ctx.shadowBlur = 4 + smoothVol * 12;
+      ctx.arc(crest.x, crest.y, beadRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowBlur = 12 + smoothBeat * 10;
       ctx.shadowColor = sColor;
       ctx.fill();
+
+      // Outer faint halo around crest bead
+      ctx.beginPath();
+      ctx.arc(crest.x, crest.y, beadRadius * 2.2, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${sR}, ${sG}, ${sB}, 0.45)`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    });
+
+    // --- LAYER 5: HIGH-TREBLE BRILLIANCE & AIR SHIMMER RIBBON ---
+    // Micro-ripples reacting instantly to hi-hats, vocal sibilance ("s", "sh"), and acoustic air
+    const trebleAmp = (smoothTreble * 18.0 + smoothVocalHigh * 14.0 + 2.0);
+    const trebleBaseY = h * 0.85;
+    const treblePts = [];
+    const stepTreble = Math.max(9, Math.floor(w / 70));
+    for (let x = 0; x <= w + stepTreble; x += stepTreble) {
+      const normX = x / w;
+      const shimmer1 = Math.sin(normX * 16.0 + wavePhase * 2.4) * (trebleAmp * 0.62);
+      const shimmer2 = Math.sin(normX * 34.0 - wavePhase * 3.4) * (trebleAmp * 0.38);
+      treblePts.push({ x: x, y: trebleBaseY + shimmer1 + shimmer2 });
+    }
+
+    ctx.beginPath();
+    traceSmoothSpline(treblePts);
+    ctx.strokeStyle = `rgba(${pR}, ${pG}, ${pB}, ${Math.min(0.85, 0.25 + smoothTreble * 0.65)})`;
+    ctx.lineWidth = 1.0 + smoothTreble * 1.4;
+    ctx.shadowBlur = 6 + smoothTreble * 14;
+    ctx.shadowColor = pColor;
+    ctx.stroke();
+
+    // --- LAYER 6: LIVING AUDIO PARTICLES & CELESTIAL STARDUST ---
+    // Particles drift smoothly across desktop, riding vertical acoustic tides and pulsing with the beat
+    particles.forEach(p => {
+      // Speed reacts to live volume and beats
+      p.x += p.speedX * (0.6 + smoothVol * 2.6 + smoothBeat * 1.8);
+      p.y += p.speedY;
+      p.sparklePhase += 0.05 + smoothTreble * 0.12;
+
+      // Wrap around screen boundaries seamlessly
+      if (p.x > w + 10) p.x = -10;
+      if (p.y < 40) p.y = h - 40;
+      if (p.y > h - 20) p.y = 50;
+
+      // Vertical wave tide oscillation
+      const pY = p.y + Math.sin(p.x * 0.012 + wavePhase) * (6 + smoothBass * 14);
+      const dynamicRadius = Math.max(0.6, p.radius + smoothBeat * 1.4 + Math.sin(p.sparklePhase) * 0.5);
+      const dynamicAlpha = Math.min(1.0, p.alpha * (0.7 + Math.sin(p.sparklePhase) * 0.3) + smoothVol * 0.45);
+
+      ctx.beginPath();
+      ctx.arc(p.x, pY, dynamicRadius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${sR}, ${sG}, ${sB}, ${dynamicAlpha})`;
+      ctx.shadowBlur = 4 + smoothVol * 14;
+      ctx.shadowColor = sColor;
+      ctx.fill();
+
+      // On beat peaks, draw mini sparkle cross on larger particles
+      if (smoothBeat > 0.45 && p.radius > 1.8) {
+        ctx.beginPath();
+        ctx.moveTo(p.x - dynamicRadius * 1.8, pY);
+        ctx.lineTo(p.x + dynamicRadius * 1.8, pY);
+        ctx.moveTo(p.x, pY - dynamicRadius * 1.8);
+        ctx.lineTo(p.x, pY + dynamicRadius * 1.8);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${dynamicAlpha * 0.8})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
     });
 
     requestAnimationFrame(renderDesktopWaves);
