@@ -442,7 +442,11 @@ HTML_TEMPLATE = """
     overflow: hidden;
     pointer-events: auto;
     cursor: grab;
-    transition: background 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease;
+    transition: height 0.28s cubic-bezier(0.16, 1, 0.3, 1), background 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease;
+  }
+
+  .player-card.expanded {
+    height: 196px;
   }
 
   .player-card:active {
@@ -764,34 +768,276 @@ HTML_TEMPLATE = """
     fill: currentColor;
   }
 
-  /* Search Modal */
-  .search-modal {
+  /* Modal, Queue & Search Styles */
+  .playlist-modal {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     background: rgba(10, 18, 28, 0.95);
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-radius: 16px;
+    border: 1px solid var(--accent-border);
     display: none;
     flex-direction: column;
-    padding: 10px 12px;
+    padding: 8px 12px;
     z-index: 50;
+    box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.3), 0 8px 32px rgba(0, 0, 0, 0.8);
   }
 
-  .search-modal.active {
+  .playlist-modal.active {
     display: flex;
   }
 
+  .modal-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .modal-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .modal-tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .modal-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .modal-tab-btn.active {
+    background: var(--accent-glow-subtle);
+    color: var(--accent-primary);
+    border: 1px solid var(--accent-border);
+    text-shadow: 0 0 6px var(--accent-glow);
+  }
+
+  .modal-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .loop-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 8.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    transition: all 0.2s ease;
+  }
+
+  .loop-pill:hover {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .loop-pill.active {
+    background: var(--accent-glow-subtle);
+    border-color: var(--accent-primary);
+    color: var(--accent-secondary);
+    box-shadow: 0 0 8px var(--accent-glow-subtle);
+  }
+
+  .tab-content {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+
+  .tab-content.active {
+    display: flex;
+  }
+
+  /* Quick Add Bar */
+  .quick-add-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 3px 6px;
+    margin-bottom: 6px;
+  }
+
+  .quick-add-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-size: 10px;
+  }
+
+  .quick-add-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  /* Queue View */
+  .queue-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 4px 4px;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 600;
+  }
+
+  .queue-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-right: 3px;
+  }
+
+  .queue-list::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .queue-list::-webkit-scrollbar-thumb {
+    background: var(--accent-border);
+    border-radius: 2px;
+  }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .queue-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .queue-item.now-playing {
+    background: var(--accent-glow-subtle);
+    border-color: var(--accent-border);
+    box-shadow: 0 0 10px var(--accent-glow-subtle);
+  }
+
+  .queue-item-idx {
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.45);
+    width: 14px;
+    text-align: center;
+  }
+
+  .queue-item img {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .queue-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .queue-item-title {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .queue-item-artist {
+    font-size: 8px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .queue-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .btn-sm-action {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .btn-sm-action:hover {
+    background: var(--accent-primary);
+    color: #0b1118;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+
+  .btn-sm-del:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  }
+
+  /* Search Bar & Results */
   .search-bar {
     display: flex;
     align-items: center;
     gap: 6px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid var(--accent-border);
-    border-radius: 8px;
-    padding: 5px 8px;
+    border-radius: 7px;
+    padding: 4px 8px;
   }
 
   .search-input {
@@ -800,7 +1046,7 @@ HTML_TEMPLATE = """
     border: none;
     outline: none;
     color: #ffffff;
-    font-size: 11px;
+    font-size: 10.5px;
   }
 
   .search-input::placeholder {
@@ -810,10 +1056,10 @@ HTML_TEMPLATE = """
   .search-submit-btn {
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
     border: none;
-    border-radius: 5px;
-    color: #ffffff;
-    font-size: 9.5px;
-    font-weight: 700;
+    border-radius: 4px;
+    color: #0b1118;
+    font-size: 9px;
+    font-weight: 800;
     padding: 3px 8px;
     cursor: pointer;
     box-shadow: 0 0 8px var(--accent-glow-subtle);
@@ -826,6 +1072,7 @@ HTML_TEMPLATE = """
     display: flex;
     flex-direction: column;
     gap: 3px;
+    padding-right: 3px;
   }
 
   .search-results-list::-webkit-scrollbar {
@@ -842,21 +1089,22 @@ HTML_TEMPLATE = """
     align-items: center;
     gap: 8px;
     padding: 4px 6px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    cursor: pointer;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     transition: background 0.15s ease;
   }
 
   .search-item:hover {
-    background: var(--accent-glow-subtle);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .search-item img {
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: 3px;
     object-fit: cover;
+    flex-shrink: 0;
   }
 
   .search-item-info {
@@ -865,7 +1113,7 @@ HTML_TEMPLATE = """
   }
 
   .search-item-title {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     color: #ffffff;
     white-space: nowrap;
@@ -874,11 +1122,74 @@ HTML_TEMPLATE = """
   }
 
   .search-item-artist {
-    font-size: 8.5px;
+    font-size: 8px;
     color: #94a3b8;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .search-item-btns {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Toast & Badges */
+  .toast-box {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translate(-50%, -14px);
+    background: rgba(13, 23, 33, 0.94);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--accent-border);
+    box-shadow: 0 0 16px var(--accent-glow-subtle), 0 4px 12px rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 16px;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .toast-box.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .queue-badge {
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    background: var(--accent-primary);
+    color: #0b1118;
+    font-size: 7px;
+    font-weight: 900;
+    border-radius: 6px;
+    padding: 0 3px;
+    min-width: 10px;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+
+  .now-playing-tag {
+    font-size: 7px;
+    font-weight: 800;
+    color: var(--accent-primary);
+    background: rgba(34, 211, 238, 0.12);
+    border: 1px solid var(--accent-border);
+    border-radius: 3px;
+    padding: 0 3px;
+    margin-left: 4px;
+    display: inline-block;
   }
 </style>
 </head>
@@ -955,27 +1266,65 @@ HTML_TEMPLATE = """
           <button class="mini-btn" id="btn-shuffle" title="Shuffle">
             <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
           </button>
-          <button class="mini-btn" id="btn-repeat" title="Repeat">
-            <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+          <button class="mini-btn" id="btn-repeat" title="Repeat: Off">
+            <svg id="repeat-icon" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
           </button>
-          <button class="mini-btn" id="btn-playlist" title="Playlist / Search">
+          <button class="mini-btn" id="btn-playlist" title="Queue & Playlist" style="position:relative;">
             <svg viewBox="0 0 24 24"><path d="M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z"/></svg>
+            <span class="queue-badge" id="queue-badge" style="display:none;">0</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Search Modal -->
-    <div class="search-modal" id="search-modal">
-      <div class="search-bar">
-        <input type="text" class="search-input" id="search-input" placeholder="Search any song or artist on YouTube...">
-        <button class="search-submit-btn" id="search-submit-btn">FIND</button>
-        <button class="icon-btn" id="btn-search-close">
-          <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
-        </button>
+    <!-- Toast Notification -->
+    <div class="toast-box" id="toast-box"></div>
+
+    <!-- Glassmorphism Queue & Search Modal -->
+    <div class="playlist-modal" id="playlist-modal">
+      <div class="modal-top-bar">
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" id="tab-queue-btn">
+            <span>📑 Queue</span>
+            <span id="queue-tab-count">(0)</span>
+          </button>
+          <button class="modal-tab-btn" id="tab-search-btn">
+            <span>🔍 Search & Add</span>
+          </button>
+        </div>
+        <div class="modal-top-actions">
+          <button class="loop-pill" id="btn-modal-loop" title="Toggle Looping Playlist">🔁 Loop Playlist: OFF</button>
+          <button class="icon-btn" id="btn-modal-close" title="Close">
+            <svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
+          </button>
+        </div>
       </div>
-      <div class="search-results-list" id="search-results-list">
-        <div style="color:#94a3b8;font-size:10px;padding:10px;text-align:center;">Type any song above and hit Find</div>
+
+      <!-- Tab 1: Queue / Playlist -->
+      <div class="tab-content active" id="view-queue">
+        <div class="quick-add-bar">
+          <input type="text" class="quick-add-input" id="quick-add-input" placeholder="Paste YouTube link or song name to add...">
+          <button class="btn-sm-action" id="btn-quick-next" title="Add as next to play">⏭️ Next</button>
+          <button class="btn-sm-action" id="btn-quick-queue" title="Add to end of queue">➕ Queue</button>
+        </div>
+        <div class="queue-header-row">
+          <span id="queue-count-display">Upcoming in Queue (0 tracks)</span>
+          <button class="btn-sm-action btn-sm-del" id="btn-clear-queue" title="Clear all upcoming tracks">🗑️ Clear</button>
+        </div>
+        <div class="queue-list" id="queue-list">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Search YouTube -->
+      <div class="tab-content" id="view-search">
+        <div class="search-bar">
+          <input type="text" class="search-input" id="search-input" placeholder="Search any song, artist, or paste YouTube link...">
+          <button class="search-submit-btn" id="search-submit-btn">FIND</button>
+        </div>
+        <div class="search-results-list" id="search-results-list">
+          <div style="color:#94a3b8;font-size:10px;padding:15px;text-align:center;">Type a song or artist and hit Find</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1003,11 +1352,26 @@ HTML_TEMPLATE = """
   const btnClose = document.getElementById('btn-close');
   const btnMinimize = document.getElementById('btn-minimize');
   const btnSearchToggle = document.getElementById('btn-search-toggle');
-  const btnSearchClose = document.getElementById('btn-search-close');
-  const searchModal = document.getElementById('search-modal');
+  const playlistModal = document.getElementById('playlist-modal');
+  const btnModalClose = document.getElementById('btn-modal-close');
+  const btnModalLoop = document.getElementById('btn-modal-loop');
+  const tabQueueBtn = document.getElementById('tab-queue-btn');
+  const tabSearchBtn = document.getElementById('tab-search-btn');
+  const viewQueue = document.getElementById('view-queue');
+  const viewSearch = document.getElementById('view-search');
+  const queueList = document.getElementById('queue-list');
+  const queueCountDisplay = document.getElementById('queue-count-display');
+  const queueTabCount = document.getElementById('queue-tab-count');
+  const queueBadge = document.getElementById('queue-badge');
+  const btnClearQueue = document.getElementById('btn-clear-queue');
+  const quickAddInput = document.getElementById('quick-add-input');
+  const btnQuickNext = document.getElementById('btn-quick-next');
+  const btnQuickQueue = document.getElementById('btn-quick-queue');
   const searchInput = document.getElementById('search-input');
   const searchSubmitBtn = document.getElementById('search-submit-btn');
   const searchResultsList = document.getElementById('search-results-list');
+  const toastBox = document.getElementById('toast-box');
+  const repeatIcon = document.getElementById('repeat-icon');
   const spectrumContainer = document.getElementById('spectrum-container');
   const canvas = document.getElementById('desktop-waves');
   const ctx = canvas.getContext('2d');
@@ -1015,8 +1379,17 @@ HTML_TEMPLATE = """
 
   let isPlaying = false;
   let isShuffle = false;
-  let isRepeat = false;
+  let loopMode = 'off'; // 'off' | 'playlist' | 'track'
   let currentVidId = 'oC6brLXQe4I';
+  let queue = [
+    {
+      id: 'oC6brLXQe4I',
+      title: 'BABYMONSTER - DESERVE MV',
+      artist: 'BABYMONSTER',
+      thumb: 'https://i.ytimg.com/vi/oC6brLXQe4I/hqdefault.jpg'
+    }
+  ];
+  let currentQueueIndex = 0;
 
   // Screen resolution for 1:1 background alignment
   const SCREEN_W = window.innerWidth;
@@ -1362,31 +1735,309 @@ HTML_TEMPLATE = """
 
   btnPlayPause.addEventListener('click', togglePlay);
 
-  btnPrev.addEventListener('click', () => {
-    btnPlayPause.classList.add('loading');
-    window.pywebview && window.pywebview.api.prev_track();
-  });
+  // Toast Notifications
+  let toastTimer = null;
+  function showToast(msg) {
+    if (!toastBox) return;
+    toastBox.textContent = msg;
+    toastBox.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastBox.classList.remove('show');
+    }, 2200);
+  }
+  window.showToast = showToast;
 
-  btnNext.addEventListener('click', () => {
-    btnPlayPause.classList.add('loading');
-    window.pywebview && window.pywebview.api.next_track();
+  // Repeat & Playlist Looping Modes
+  function updateRepeatUI() {
+    if (loopMode === 'playlist') {
+      btnRepeat.classList.add('active');
+      btnRepeat.title = 'Loop Playlist: ON (Continuous Loop)';
+      btnModalLoop.classList.add('active');
+      btnModalLoop.textContent = '🔁 Loop Playlist: ON';
+      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>';
+      audio.loop = false;
+    } else if (loopMode === 'track') {
+      btnRepeat.classList.add('active');
+      btnRepeat.title = 'Repeat Current Track';
+      btnModalLoop.classList.remove('active');
+      btnModalLoop.textContent = '🔁 Loop Playlist: OFF';
+      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/><text x="12" y="14" font-size="7.5" font-weight="900" text-anchor="middle" fill="currentColor">1</text>';
+      audio.loop = true;
+    } else {
+      btnRepeat.classList.remove('active');
+      btnRepeat.title = 'Repeat: Off';
+      btnModalLoop.classList.remove('active');
+      btnModalLoop.textContent = '🔁 Loop Playlist: OFF';
+      repeatIcon.innerHTML = '<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>';
+      audio.loop = false;
+    }
+  }
+
+  function cycleRepeatMode() {
+    if (loopMode === 'off') {
+      loopMode = 'playlist';
+      showToast('🔁 Loop Playlist: ON');
+    } else if (loopMode === 'playlist') {
+      loopMode = 'track';
+      showToast('🔂 Repeat Current Track');
+    } else {
+      loopMode = 'off';
+      showToast('Repeat: OFF');
+    }
+    updateRepeatUI();
+  }
+
+  btnRepeat.addEventListener('click', cycleRepeatMode);
+
+  btnModalLoop.addEventListener('click', () => {
+    if (loopMode === 'playlist') {
+      loopMode = 'off';
+      showToast('🔁 Loop Playlist: OFF');
+    } else {
+      loopMode = 'playlist';
+      showToast('🔁 Loop Playlist: ON');
+    }
+    updateRepeatUI();
   });
 
   btnShuffle.addEventListener('click', () => {
     isShuffle = !isShuffle;
     btnShuffle.classList.toggle('active', isShuffle);
+    showToast(isShuffle ? '🔀 Shuffle: ON' : '🔀 Shuffle: OFF');
   });
 
-  btnRepeat.addEventListener('click', () => {
-    isRepeat = !isRepeat;
-    btnRepeat.classList.toggle('active', isRepeat);
-    audio.loop = isRepeat;
+  // Queue & Playlist Management
+  function updateQueueBadge() {
+    const upcomingCount = Math.max(0, queue.length - 1);
+    queueTabCount.textContent = `(${queue.length})`;
+    if (upcomingCount > 0) {
+      queueBadge.style.display = 'flex';
+      queueBadge.textContent = upcomingCount > 9 ? '9+' : upcomingCount;
+    } else {
+      queueBadge.style.display = 'none';
+    }
+  }
+
+  function renderQueue() {
+    queueList.innerHTML = '';
+    if (queue.length === 0) {
+      queueList.innerHTML = `
+        <div style="text-align:center;padding:22px 12px;color:rgba(255,255,255,0.45);font-size:10px;">
+          <div style="font-size:16px;margin-bottom:4px;">📑</div>
+          Your playlist queue is empty.<br>
+          Search songs in <b>Search & Add</b> or paste links above to build your playlist!
+        </div>
+      `;
+      queueCountDisplay.textContent = 'Upcoming in Queue (0 tracks)';
+      updateQueueBadge();
+      return;
+    }
+
+    const upcoming = Math.max(0, queue.length - 1);
+    queueCountDisplay.textContent = `Upcoming in Queue (${upcoming} track${upcoming !== 1 ? 's' : ''})`;
+    updateQueueBadge();
+
+    queue.forEach((item, idx) => {
+      const isCur = (idx === currentQueueIndex);
+      const div = document.createElement('div');
+      div.className = `queue-item ${isCur ? 'now-playing' : ''}`;
+      
+      div.innerHTML = `
+        <div class="queue-item-idx">${idx + 1}</div>
+        <img src="${item.thumb || 'https://i.ytimg.com/vi/' + item.id + '/hqdefault.jpg'}" alt="">
+        <div class="queue-item-info">
+          <div class="queue-item-title">
+            ${item.title}
+            ${isCur ? '<span class="now-playing-tag">PLAYING</span>' : ''}
+          </div>
+          <div class="queue-item-artist">${item.artist || 'YouTube'}</div>
+        </div>
+        <div class="queue-actions">
+          ${!isCur ? `<button class="btn-sm-action" title="Play Now" data-act="play" data-idx="${idx}">▶</button>` : ''}
+          ${idx > 0 ? `<button class="btn-sm-action" title="Move Up" data-act="up" data-idx="${idx}">↑</button>` : ''}
+          ${idx < queue.length - 1 ? `<button class="btn-sm-action" title="Move Down" data-act="down" data-idx="${idx}">↓</button>` : ''}
+          <button class="btn-sm-action btn-sm-del" title="Remove from queue" data-act="del" data-idx="${idx}">✕</button>
+        </div>
+      `;
+
+      div.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) {
+          if (!isCur) playQueueItem(idx);
+          return;
+        }
+        e.stopPropagation();
+        const act = btn.getAttribute('data-act');
+        if (act === 'play') {
+          playQueueItem(idx);
+        } else if (act === 'up') {
+          moveQueueItem(idx, -1);
+        } else if (act === 'down') {
+          moveQueueItem(idx, 1);
+        } else if (act === 'del') {
+          removeFromQueue(idx);
+        }
+      });
+
+      queueList.appendChild(div);
+    });
+  }
+
+  function addToQueue(item, playNext = false) {
+    if (!item || !item.id) return;
+    if (playNext) {
+      const insertIdx = currentQueueIndex + 1;
+      queue.splice(insertIdx, 0, item);
+      showToast(`⏭️ Play Next: ${item.title}`);
+    } else {
+      queue.push(item);
+      showToast(`➕ Added to Queue: ${item.title}`);
+    }
+    if (currentQueueIndex === -1) {
+      currentQueueIndex = 0;
+    }
+    renderQueue();
+  }
+
+  function removeFromQueue(idx) {
+    if (idx < 0 || idx >= queue.length) return;
+    queue.splice(idx, 1);
+    if (idx === currentQueueIndex) {
+      if (currentQueueIndex >= queue.length) {
+        currentQueueIndex = 0;
+      }
+      if (queue.length > 0) {
+        playQueueItem(currentQueueIndex);
+      }
+    } else if (idx < currentQueueIndex) {
+      currentQueueIndex--;
+    }
+    renderQueue();
+    showToast('Removed from queue');
+  }
+
+  function clearQueue() {
+    if (queue.length <= 1) {
+      queue = [];
+      currentQueueIndex = -1;
+    } else if (currentQueueIndex >= 0 && currentQueueIndex < queue.length) {
+      queue = [queue[currentQueueIndex]];
+      currentQueueIndex = 0;
+    } else {
+      queue = [];
+      currentQueueIndex = -1;
+    }
+    renderQueue();
+    showToast('Queue cleared');
+  }
+
+  function moveQueueItem(idx, dir) {
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= queue.length) return;
+    const temp = queue[idx];
+    queue[idx] = queue[targetIdx];
+    queue[targetIdx] = temp;
+    if (currentQueueIndex === idx) {
+      currentQueueIndex = targetIdx;
+    } else if (currentQueueIndex === targetIdx) {
+      currentQueueIndex = idx;
+    }
+    renderQueue();
+  }
+
+  function playQueueItem(idx) {
+    if (idx < 0 || idx >= queue.length) return;
+    currentQueueIndex = idx;
+    const item = queue[idx];
+    currentVidId = item.id;
+    window.updateTrackInfo(item.title, item.artist, item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`);
+    btnPlayPause.classList.add('loading');
+    window.pywebview && window.pywebview.api.play_id(item.id);
+    renderQueue();
+  }
+
+  function playNextSong() {
+    if (loopMode === 'track') {
+      audio.currentTime = 0;
+      audio.play();
+      return;
+    }
+
+    if (isShuffle && queue.length > 1) {
+      let randIdx = Math.floor(Math.random() * queue.length);
+      if (randIdx === currentQueueIndex) randIdx = (randIdx + 1) % queue.length;
+      playQueueItem(randIdx);
+      return;
+    }
+
+    if (queue.length > 0) {
+      if (currentQueueIndex + 1 < queue.length) {
+        playQueueItem(currentQueueIndex + 1);
+        return;
+      } else if (loopMode === 'playlist') {
+        // Continuous loop of custom playlist
+        playQueueItem(0);
+        showToast('🔁 Looping Playlist from start');
+        return;
+      }
+    }
+
+    // Queue finished and loop not active: fall back to YouTube Auto-Next related songs
+    btnPlayPause.classList.add('loading');
+    window.pywebview && window.pywebview.api.auto_next();
+  }
+
+  function playPrevSong() {
+    if (audio.currentTime > 4) {
+      audio.currentTime = 0;
+      return;
+    }
+
+    if (queue.length > 0) {
+      if (currentQueueIndex > 0) {
+        playQueueItem(currentQueueIndex - 1);
+        return;
+      } else if (loopMode === 'playlist') {
+        playQueueItem(queue.length - 1);
+        return;
+      }
+    }
+
+    btnPlayPause.classList.add('loading');
+    window.pywebview && window.pywebview.api.prev_track();
+  }
+
+  btnNext.addEventListener('click', playNextSong);
+  btnPrev.addEventListener('click', playPrevSong);
+  btnClearQueue.addEventListener('click', clearQueue);
+
+  btnQuickNext.addEventListener('click', () => {
+    const q = quickAddInput.value.trim();
+    if (!q) return;
+    showToast('Fetching track...');
+    window.pywebview && window.pywebview.api.search_and_queue(q, true);
+    quickAddInput.value = '';
   });
 
-  btnPlaylist.addEventListener('click', () => {
-    searchModal.classList.add('active');
-    searchInput.focus();
+  btnQuickQueue.addEventListener('click', () => {
+    const q = quickAddInput.value.trim();
+    if (!q) return;
+    showToast('Fetching track...');
+    window.pywebview && window.pywebview.api.search_and_queue(q, false);
+    quickAddInput.value = '';
   });
+
+  quickAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      btnQuickQueue.click();
+    }
+  });
+
+  window.addTrackToQueueFromPython = function(item, playNext) {
+    if (!item) return;
+    addToQueue(item, playNext);
+  };
 
   // Two-way device volume sync: widget slider <-> Windows master volume
   audio.volume = parseFloat(volSlider.value);
@@ -1411,22 +2062,12 @@ HTML_TEMPLATE = """
   });
 
   // YOUTUBE AUTO-NEXT & NONSTOP PLAYBACK
-  audio.addEventListener('ended', () => {
-    if (isRepeat) {
-      audio.currentTime = 0;
-      audio.play();
-    } else {
-      btnPlayPause.classList.add('loading');
-      window.pywebview && window.pywebview.api.auto_next();
-    }
-  });
+  audio.addEventListener('ended', playNextSong);
 
   // Nonstop error recovery: if a stream fails, automatically move to next song
   audio.addEventListener('error', () => {
     console.log('Audio playback error, auto-recovering next song...');
-    setTimeout(() => {
-      window.pywebview && window.pywebview.api.auto_next();
-    }, 1000);
+    setTimeout(playNextSong, 1200);
   });
 
   function formatTime(sec) {
@@ -1457,20 +2098,61 @@ HTML_TEMPLATE = """
     if (thumb) albumArt.src = thumb;
   };
 
-  // Search Modal
-  btnSearchToggle.addEventListener('click', () => {
-    searchModal.classList.add('active');
-    searchInput.focus();
+  // Modal Navigation & Tabs
+  let activeTab = 'queue';
+  function switchTab(tab) {
+    activeTab = tab;
+    if (tab === 'queue') {
+      tabQueueBtn.classList.add('active');
+      tabSearchBtn.classList.remove('active');
+      viewQueue.classList.add('active');
+      viewSearch.classList.remove('active');
+      renderQueue();
+    } else {
+      tabSearchBtn.classList.add('active');
+      tabQueueBtn.classList.remove('active');
+      viewSearch.classList.add('active');
+      viewQueue.classList.remove('active');
+      setTimeout(() => searchInput.focus(), 80);
+    }
+  }
+
+  tabQueueBtn.addEventListener('click', () => switchTab('queue'));
+  tabSearchBtn.addEventListener('click', () => switchTab('search'));
+
+  function openModal(tab = 'queue') {
+    card.classList.add('expanded');
+    playlistModal.classList.add('active');
+    switchTab(tab);
+  }
+
+  function closeModal() {
+    playlistModal.classList.remove('active');
+    card.classList.remove('expanded');
+  }
+
+  btnPlaylist.addEventListener('click', () => {
+    if (playlistModal.classList.contains('active') && activeTab === 'queue') {
+      closeModal();
+    } else {
+      openModal('queue');
+    }
   });
 
-  btnSearchClose.addEventListener('click', () => {
-    searchModal.classList.remove('active');
+  btnSearchToggle.addEventListener('click', () => {
+    if (playlistModal.classList.contains('active') && activeTab === 'search') {
+      closeModal();
+    } else {
+      openModal('search');
+    }
   });
+
+  btnModalClose.addEventListener('click', closeModal);
 
   searchSubmitBtn.addEventListener('click', () => {
     const query = searchInput.value.trim();
     if (!query) return;
-    searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:10px;padding:10px;text-align:center;">Searching YouTube...</div>';
+    searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:10px;padding:15px;text-align:center;">Searching YouTube...</div>';
     window.pywebview && window.pywebview.api.search_songs(query);
   });
 
@@ -1485,7 +2167,7 @@ HTML_TEMPLATE = """
       const results = JSON.parse(resultsJson);
       searchResultsList.innerHTML = '';
       if (!results || results.length === 0) {
-        searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:10px;padding:10px;text-align:center;">No results found.</div>';
+        searchResultsList.innerHTML = '<div style="color:#94a3b8;font-size:10px;padding:15px;text-align:center;">No results found. Try another query or paste URL.</div>';
         return;
       }
       results.forEach(item => {
@@ -1495,15 +2177,27 @@ HTML_TEMPLATE = """
           <img src="${item.thumb || 'https://i.ytimg.com/vi/' + item.id + '/hqdefault.jpg'}" alt="">
           <div class="search-item-info">
             <div class="search-item-title">${item.title}</div>
-            <div class="search-item-artist">${item.artist}</div>
+            <div class="search-item-artist">${item.artist || 'YouTube'}</div>
+          </div>
+          <div class="search-item-btns">
+            <button class="btn-sm-action" data-act="play" title="Play Immediately">▶ Play</button>
+            <button class="btn-sm-action" data-act="next" title="Play Next after current song">⏭️ Next</button>
+            <button class="btn-sm-action" data-act="queue" title="Add to Queue">➕ Queue</button>
           </div>
         `;
-        div.addEventListener('click', () => {
-          currentVidId = item.id;
-          window.updateTrackInfo(item.title, item.artist, item.thumb || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`);
-          searchModal.classList.remove('active');
-          btnPlayPause.classList.add('loading');
-          window.pywebview && window.pywebview.api.play_id(item.id);
+        div.addEventListener('click', (e) => {
+          const btn = e.target.closest('button');
+          const act = btn ? btn.getAttribute('data-act') : 'play';
+          if (act === 'play') {
+            const insertIdx = currentQueueIndex + 1;
+            queue.splice(insertIdx, 0, item);
+            playQueueItem(insertIdx);
+            showToast(`▶ Now Playing: ${item.title}`);
+          } else if (act === 'next') {
+            addToQueue(item, true);
+          } else if (act === 'queue') {
+            addToQueue(item, false);
+          }
         });
         searchResultsList.appendChild(div);
       });
@@ -1511,6 +2205,10 @@ HTML_TEMPLATE = """
       console.error(err);
     }
   };
+
+  // Initialize Repeat and Queue Display
+  updateRepeatUI();
+  renderQueue();
 
   btnClose.addEventListener('click', () => {
     window.pywebview && window.pywebview.api.close_window();
@@ -1638,15 +2336,46 @@ class MusicAPI:
     def search_songs(self, query):
         threading.Thread(target=self._search_async, args=(query,), daemon=True).start()
 
+    def search_and_queue(self, query, play_next=False):
+        threading.Thread(target=self._search_and_queue_async, args=(query, play_next), daemon=True).start()
+
+    def _search_and_queue_async(self, query, play_next):
+        w = self.win_holder[0]
+        if not w:
+            return
+        try:
+            is_url = ("youtube.com" in query or "youtu.be" in query or query.startswith("http"))
+            target = query if is_url else f"ytsearch1:{query}"
+            with yt_dlp.YoutubeDL(self.ydl_opts_search) as ydl:
+                info = ydl.extract_info(target, download=False)
+                entry = info.get('entries', [info])[0] if 'entries' in info and info['entries'] else info
+                title = entry.get('title', 'YouTube Track').replace(' (Official Video)', '').replace(' [Official Audio]', '').replace(' (Official Music Video)', '')
+                artist = entry.get('uploader') or entry.get('channel') or 'YouTube'
+                vid_id = entry.get('id', '')
+                thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg" if vid_id else ''
+                track_data = {"id": vid_id, "title": title, "artist": artist, "thumb": thumb}
+                w.evaluate_js(f"window.addTrackToQueueFromPython({json.dumps(track_data)}, {json.dumps(play_next)});")
+        except Exception:
+            w.evaluate_js("window.showToast('Could not resolve link');")
+
     def _search_async(self, query):
         w = self.win_holder[0]
         if not w:
             return
         results = []
         try:
-            with yt_dlp.YoutubeDL(self.ydl_opts_search) as ydl:
-                info = ydl.extract_info(f"ytsearch6:{query}", download=False)
-                for entry in info.get('entries', []):
+            is_url = ("youtube.com" in query or "youtu.be" in query or query.startswith("http"))
+            target = query if is_url else f"ytsearch8:{query}"
+            opts = dict(self.ydl_opts_search)
+            if is_url and "list=" in query:
+                opts['noplaylist'] = False
+                opts['playlist_items'] = '1-15'
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target, download=False)
+                entries = info.get('entries', [info]) if 'entries' in info else [info]
+                for entry in entries:
+                    if not entry:
+                        continue
                     title = entry.get('title', 'Unknown Title')
                     title = title.replace(' (Official Video)', '').replace(' [Official Audio]', '').replace(' (Official Music Video)', '')
                     artist = entry.get('uploader') or entry.get('channel') or 'YouTube'
