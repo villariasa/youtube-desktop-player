@@ -11,13 +11,18 @@ Immersive Glassmorphism Desktop Music Visualizer
 - Full controls: Click-to-seek, Volume slider, Prev/Next, Glowing Circular Play/Pause, Shuffle, Repeat, Search
 - Desktop level (on_top=False, never overlaps other applications)
 """
+import os
+import sys
+
+if sys.platform.startswith('linux'):
+    if '/usr/lib/x86_64-linux-gnu/girepository-1.0' not in os.environ.get('GI_TYPELIB_PATH', ''):
+        os.environ['GI_TYPELIB_PATH'] = '/usr/lib/x86_64-linux-gnu/girepository-1.0:' + os.environ.get('GI_TYPELIB_PATH', '')
+
 import webview
 import yt_dlp
 import threading
 import json
 import ctypes
-import os
-import sys
 import io
 import time
 import base64
@@ -2732,18 +2737,26 @@ class MusicAPI:
         ]
         self.history_index = 0
         self.played_ids = set(["oC6brLXQe4I"])
+        
+        extractor_args = {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        }
         self.ydl_opts_search = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
+            'extractor_args': extractor_args,
         }
         self.ydl_opts_stream = {
             'format': 'bestaudio/best',
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'extractor_args': extractor_args,
         }
 
     def set_system_volume(self, vol):
@@ -2851,8 +2864,10 @@ class MusicAPI:
                 self.played_ids.add(vid_id)
                 w.evaluate_js(f"window.updateTrackInfo({json.dumps(title)}, {json.dumps(artist)}, {json.dumps(thumb)});")
                 w.evaluate_js(f"window.setStreamUrl({json.dumps(stream_url)});")
-        except Exception:
-            w.evaluate_js(f"window.setStreamUrl('');")
+        except Exception as e:
+            print(f"[yt-dlp] Stream error for {vid_id}: {e}")
+            w.evaluate_js("window.showToast('Could not stream track');")
+            w.evaluate_js("window.setStreamUrl('');")
 
     def auto_next(self):
         """Automatically selects and plays the next related YouTube track (Autoplay Non-stop)."""
