@@ -2920,24 +2920,20 @@ class MusicAPI:
 
 def wallpaper_watcher(api):
     """Monitors active desktop wallpaper changes and updates full wallpaper image & dynamic aesthetic palette."""
-    wp_path = get_active_wallpaper_path()
+    last_wp_path = ""
     last_mtime = 0
-    try:
-        if wp_path and os.path.exists(wp_path):
-            last_mtime = os.path.getmtime(wp_path)
-    except Exception:
-        pass
 
     while True:
         try:
             wp_path = get_active_wallpaper_path()
             if wp_path and os.path.exists(wp_path):
                 mtime = os.path.getmtime(wp_path)
-                if mtime != last_mtime:
+                if wp_path != last_wp_path or mtime != last_mtime:
+                    last_wp_path = wp_path
                     last_mtime = mtime
                     b64 = ""
                     for _ in range(3):
-                        time.sleep(0.35)
+                        time.sleep(0.2)
                         b64 = get_full_wallpaper_b64()
                         if b64:
                             break
@@ -2950,7 +2946,7 @@ def wallpaper_watcher(api):
                             w.evaluate_js(f"window.updateLivePalette({json.dumps(palette)});")
         except Exception:
             pass
-        time.sleep(0.6)
+        time.sleep(0.5)
 
 
 def volume_watcher(api):
