@@ -162,7 +162,19 @@ def get_active_wallpaper_path():
     elif IS_LINUX:
         try:
             import subprocess
-            out = subprocess.check_output(['gsettings', 'get', 'org.gnome.desktop.background', 'picture-uri'], text=True, stderr=subprocess.DEVNULL).strip()
+            clean_env = os.environ.copy()
+            clean_env.pop("GSETTINGS_SCHEMA_DIR", None)
+            clean_env.pop("GIO_EXTRA_MODULES", None)
+            gsettings_bin = "/usr/bin/gsettings" if os.path.isfile("/usr/bin/gsettings") else "gsettings"
+            out = subprocess.check_output([gsettings_bin, 'get', 'org.gnome.desktop.background', 'picture-uri'], text=True, stderr=subprocess.DEVNULL, env=clean_env).strip()
+            path = out.strip("'\"").replace("file://", "")
+            if os.path.exists(path):
+                return path
+        except Exception:
+            pass
+        try:
+            import subprocess
+            out = subprocess.check_output(['dconf', 'read', '/org/gnome/desktop/background/picture-uri'], text=True, stderr=subprocess.DEVNULL).strip()
             path = out.strip("'\"").replace("file://", "")
             if os.path.exists(path):
                 return path
