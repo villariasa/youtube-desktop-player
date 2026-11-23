@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Immersive Glassmorphism Desktop Music Visualizer
 - Real-time dynamic glass dragging: wallpaper flows smoothly through glass during drag

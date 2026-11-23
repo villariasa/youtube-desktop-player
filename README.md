@@ -58,33 +58,39 @@
 
 ---
 
-### 🐧 Linux (Automated Installer)
+### 🐧 Linux (1-Click Automated Installer & Launcher)
 
-Supports **Ubuntu / Debian / Mint / Pop!_OS**, **Arch Linux / Manjaro**, **Fedora / RHEL**, and **openSUSE**.
+Supports **Ubuntu / Debian / Mint / Pop!_OS**, **Arch Linux / Manjaro**, **Fedora / RHEL**, and **openSUSE**. **No root / sudo password required!**
 
 1. Clone or download this repository:
    ```bash
    git clone https://github.com/villariasa/youtube-desktop-player.git
    cd youtube-desktop-player
    ```
-2. Make the installer executable and run it:
+2. Run the 1-click installer:
    ```bash
    chmod +x install_linux.sh
    ./install_linux.sh
    ```
 3. The installer will:
-   - Automatically detect your distribution's package manager (`apt`, `pacman`, `dnf`, `zypper`).
-   - Install system dependencies (`webkit2gtk`, `pulseaudio`, `python3-venv`).
-   - Create an isolated virtual environment (`.venv`) and install Python requirements.
-   - Install the desktop application launcher (`~/.local/share/applications/youtube-desktop-player.desktop`) and custom icon.
-   - Create a terminal CLI command (`youtube-desktop-player`).
+   - Configure the standalone application bundle (zero compilation, zero build dependencies).
+   - Install the Desktop shortcut (`~/Desktop/Desktop Music Visualizer`) and Application Menu entry.
+   - Install the high-res app icon and `youtube-desktop-player` terminal command.
+   - Automatically launch the visualizer immediately.
+
+> [!TIP]
+> You can also run the player directly from this folder at any time by executing:
+> ```bash
+> ./launch.sh
+> ```
+> *(Note for Linux users: Do not use `py widget.py` on Linux—use `./launch.sh` or `python3 widget.py`)*.
 
 ---
 
 ## 🚀 Running the Visualizer
 
 - **On Windows**: Double-click the **`Desktop Music Visualizer`** icon on your Desktop, or run `launch.bat`.
-- **On Linux**: Launch **`Desktop Music Visualizer`** from your Application Menu, or type `youtube-desktop-player` in any terminal.
+- **On Linux**: Launch **`Desktop Music Visualizer`** from your Desktop / Application Menu, or run `./launch.sh` in the project folder, or type `youtube-desktop-player` in any terminal.
 
 ---
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Desktop Music Visualizer - Linux Automated Installer
-# Supports Debian/Ubuntu/Mint, Arch/Manjaro, Fedora/RHEL, and openSUSE
+# Desktop Music Visualizer - 1-Click Standalone Linux Installer
+# Installs standalone application, desktop shortcuts, and terminal command
+# No root (sudo) or compilation required!
 # ==============================================================================
 
 set -e
@@ -9,121 +10,136 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_NAME="youtube-desktop-player"
 DISPLAY_NAME="Desktop Music Visualizer"
+APP_DIR="${HOME}/.local/share/${APP_NAME}"
+BIN_DIR="${HOME}/.local/bin"
+ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
+DESKTOP_DIR="${HOME}/.local/share/applications"
+TARGET_APPIMAGE="${APP_DIR}/Desktop-Music-Visualizer.AppImage"
+RELEASE_URL="https://github.com/villariasa/youtube-desktop-player/releases/download/v1.0.0/Desktop-Music-Visualizer-v1.0.0-Linux.AppImage"
 
 echo "========================================================="
-echo "   ${DISPLAY_NAME} - Linux Automated Installer"
+echo "   ${DISPLAY_NAME} - 1-Click Linux Installer"
 echo "========================================================="
 echo ""
 
-# 1. Detect Package Manager and Install System Dependencies
-echo "[1/5] Detecting Linux distribution and installing system dependencies..."
-
-if command -v apt-get >/dev/null 2>&1; then
-    echo "      Detected Debian / Ubuntu / Mint based system (apt)"
-    sudo apt-get update -qq
-    # Try WebKit2GTK (4.1 or 4.0 depending on distribution version)
-    sudo apt-get install -y python3 python3-pip python3-venv python3-gi \
-        libpulse-dev alsa-utils libgirepository1.0-dev gir1.2-webkit2-4.1 2>/dev/null || \
-    sudo apt-get install -y python3 python3-pip python3-venv python3-gi \
-        libpulse-dev alsa-utils libgirepository1.0-dev gir1.2-webkit2-4.0 2>/dev/null || true
-
-elif command -v pacman >/dev/null 2>&1; then
-    echo "      Detected Arch Linux / Manjaro based system (pacman)"
-    sudo pacman -Sy --noconfirm --needed python python-pip python-virtualenv \
-        webkit2gtk alsa-utils libpulse
-
-elif command -v dnf >/dev/null 2>&1; then
-    echo "      Detected Fedora / RHEL based system (dnf)"
-    sudo dnf install -y python3 python3-pip python3-virtualenv \
-        webkit2gtk4.1 alsa-utils pulseaudio-libs-devel 2>/dev/null || \
-    sudo dnf install -y python3 python3-pip python3-virtualenv \
-        webkit2gtk4.0 alsa-utils pulseaudio-libs-devel 2>/dev/null || true
-
-elif command -v zypper >/dev/null 2>&1; then
-    echo "      Detected openSUSE based system (zypper)"
-    sudo zypper install -y python3 python3-pip python3-virtualenv \
-        webkit2gtk3-devel alsa-utils libpulse-devel || true
-
-else
-    echo "      [WARN] Unknown package manager. Please ensure Python 3, WebKit2GTK, and ALSA/Pulse are installed."
-fi
-
-# 2. Set up Python Virtual Environment
-echo "[2/5] Setting up isolated Python virtual environment..."
-VENV_DIR="${SCRIPT_DIR}/.venv"
-if [ ! -d "${VENV_DIR}" ]; then
-    python3 -m venv "${VENV_DIR}"
-fi
-
-# 3. Install Python Dependencies
-echo "[3/5] Installing Python packages from requirements.txt..."
-"${VENV_DIR}/bin/pip" install --upgrade pip -q
-"${VENV_DIR}/bin/pip" install -r "${SCRIPT_DIR}/requirements.txt" -q
-
-# 4. Generate Icon if missing
-if [ ! -f "${SCRIPT_DIR}/assets/icon.png" ]; then
-    echo "[4/5] Generating application icon..."
-    mkdir -p "${SCRIPT_DIR}/assets"
-    "${VENV_DIR}/bin/python" -c "
-from PIL import Image, ImageDraw
-size = 256
-img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-draw = ImageDraw.Draw(img)
-draw.ellipse([8, 8, size-8, size-8], fill=(13, 23, 33, 240), outline=(34, 211, 238, 255), width=4)
-for i, h in enumerate([30, 55, 90, 130, 160, 120, 85, 50, 25]):
-    bx = 38 + i * 20
-    draw.rounded_rectangle([bx, (size-h)//2, bx + 14, (size-h)//2 + h], radius=7, fill=(34, 211, 238, 255))
-img.save('${SCRIPT_DIR}/assets/icon.png')
-"
-fi
-
-# Install icon to system icon theme directory
-ICON_DEST="${HOME}/.local/share/icons/hicolor/256x256/apps"
-mkdir -p "${ICON_DEST}"
-cp "${SCRIPT_DIR}/assets/icon.png" "${ICON_DEST}/${APP_NAME}.png"
-
-# 5. Create Desktop Entry & CLI Symlink
-echo "[5/5] Creating Desktop Launcher and Terminal CLI command..."
-
-# Desktop file
-DESKTOP_DIR="${HOME}/.local/share/applications"
+mkdir -p "${APP_DIR}"
+mkdir -p "${BIN_DIR}"
+mkdir -p "${ICON_DIR}"
 mkdir -p "${DESKTOP_DIR}"
-cat <<EOF > "${DESKTOP_DIR}/${APP_NAME}.desktop"
+
+# Step 1: Locate or Download Standalone AppImage
+echo "[1/4] Setting up standalone application binary..."
+
+LOCAL_APPIMAGE=""
+if [ -f "${SCRIPT_DIR}/dist/Desktop-Music-Visualizer-v1.0.0-Linux.AppImage" ]; then
+    LOCAL_APPIMAGE="${SCRIPT_DIR}/dist/Desktop-Music-Visualizer-v1.0.0-Linux.AppImage"
+elif [ -f "${SCRIPT_DIR}/dist/Desktop-Music-Visualizer" ]; then
+    LOCAL_APPIMAGE="${SCRIPT_DIR}/dist/Desktop-Music-Visualizer"
+fi
+
+if [ -n "${LOCAL_APPIMAGE}" ]; then
+    echo "      Found local standalone package: $(basename "${LOCAL_APPIMAGE}")"
+    cp "${LOCAL_APPIMAGE}" "${TARGET_APPIMAGE}"
+    chmod +x "${TARGET_APPIMAGE}"
+elif [ -f "${TARGET_APPIMAGE}" ]; then
+    echo "      Using existing installed standalone binary."
+    chmod +x "${TARGET_APPIMAGE}"
+else
+    echo "      Local binary not found. Downloading standalone package from GitHub release..."
+    DOWNLOAD_SUCCESS=false
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL -# -o "${TARGET_APPIMAGE}" "${RELEASE_URL}" && DOWNLOAD_SUCCESS=true || true
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --show-progress -O "${TARGET_APPIMAGE}" "${RELEASE_URL}" && DOWNLOAD_SUCCESS=true || true
+    fi
+
+    if [ "$DOWNLOAD_SUCCESS" = "true" ] && [ -f "${TARGET_APPIMAGE}" ] && [ -s "${TARGET_APPIMAGE}" ]; then
+        chmod +x "${TARGET_APPIMAGE}"
+        echo "      Download complete!"
+    else
+        echo "      [INFO] Standalone binary unavailable. Falling back to portable Python runner..."
+        # Fallback to python venv if download fails or running offline
+        if command -v python3 >/dev/null 2>&1; then
+            VENV_DIR="${APP_DIR}/venv"
+            python3 -m venv "${VENV_DIR}" 2>/dev/null || true
+            if [ -x "${VENV_DIR}/bin/pip" ]; then
+                "${VENV_DIR}/bin/pip" install --upgrade pip -q 2>/dev/null || true
+                "${VENV_DIR}/bin/pip" install -r "${SCRIPT_DIR}/requirements.txt" -q 2>/dev/null || true
+            fi
+            cat << 'RUNNER' > "${TARGET_APPIMAGE}"
+#!/usr/bin/env bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+if [ -x "${HERE}/venv/bin/python" ]; then
+    exec "${HERE}/venv/bin/python" "${HERE}/widget.py" "$@"
+else
+    exec python3 "${HERE}/widget.py" "$@"
+fi
+RUNNER
+            chmod +x "${TARGET_APPIMAGE}"
+            cp "${SCRIPT_DIR}/widget.py" "${APP_DIR}/" 2>/dev/null || true
+            cp "${SCRIPT_DIR}/renderer.js" "${APP_DIR}/" 2>/dev/null || true
+            cp "${SCRIPT_DIR}/style.css" "${APP_DIR}/" 2>/dev/null || true
+        fi
+    fi
+fi
+
+# Step 2: Install Application Icons
+echo "[2/4] Installing high-resolution application icon..."
+if [ -f "${SCRIPT_DIR}/assets/icon.png" ]; then
+    cp "${SCRIPT_DIR}/assets/icon.png" "${ICON_DIR}/${APP_NAME}.png"
+    cp "${SCRIPT_DIR}/assets/icon.png" "${APP_DIR}/icon.png"
+fi
+
+# Step 3: Configure Desktop Shortcuts and Terminal Command
+echo "[3/4] Creating Desktop Shortcut and Command Launcher..."
+
+# Desktop Entry
+cat << EOF > "${DESKTOP_DIR}/${APP_NAME}.desktop"
 [Desktop Entry]
 Name=${DISPLAY_NAME}
 Comment=Immersive Glassmorphism Desktop Music Visualizer
-Exec="${VENV_DIR}/bin/python" "${SCRIPT_DIR}/widget.py"
-Icon=${ICON_DEST}/${APP_NAME}.png
+Exec=${TARGET_APPIMAGE}
+Icon=${ICON_DIR}/${APP_NAME}.png
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
 EOF
-
 chmod +x "${DESKTOP_DIR}/${APP_NAME}.desktop"
 
-# Copy to Desktop if ~/Desktop exists
+# Copy to ~/Desktop if it exists
 if [ -d "${HOME}/Desktop" ]; then
     cp "${DESKTOP_DIR}/${APP_NAME}.desktop" "${HOME}/Desktop/${APP_NAME}.desktop"
     chmod +x "${HOME}/Desktop/${APP_NAME}.desktop"
     gio set "${HOME}/Desktop/${APP_NAME}.desktop" metadata::trusted true 2>/dev/null || true
 fi
 
-# CLI wrapper in ~/.local/bin
-BIN_DIR="${HOME}/.local/bin"
-mkdir -p "${BIN_DIR}"
-cat <<EOF > "${BIN_DIR}/${APP_NAME}"
+# Terminal CLI command in ~/.local/bin
+cat << EOF > "${BIN_DIR}/${APP_NAME}"
 #!/usr/bin/env bash
-exec "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/widget.py" "\$@"
+exec "${TARGET_APPIMAGE}" "\$@"
 EOF
 chmod +x "${BIN_DIR}/${APP_NAME}"
 
+# Update desktop database
+update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
+gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
+
+echo "[4/4] Installation complete!"
 echo ""
 echo "========================================================="
-echo "   Installation Successful!"
+echo "   ${DISPLAY_NAME} is Ready to Use!"
 echo "========================================================="
-echo "You can launch the visualizer by:"
-echo "  1. Clicking '${DISPLAY_NAME}' in your Application Menu"
-echo "  2. Double-clicking the shortcut on your Desktop"
-echo "  3. Running '${APP_NAME}' in any terminal"
+echo "Launch options:"
+echo "  1. Double-click '${DISPLAY_NAME}' on your Desktop"
+echo "  2. Search for '${DISPLAY_NAME}' in your Application Menu"
+echo "  3. Type '${APP_NAME}' in any terminal"
+echo "  4. Run './launch.sh' directly from this folder"
 echo "========================================================="
+echo ""
+
+# Launch immediately if interactive display is present
+if [ -n "$DISPLAY" ]; then
+    echo "Starting ${DISPLAY_NAME} now..."
+    "${TARGET_APPIMAGE}" >/dev/null 2>&1 &
+fi
